@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ACM Spell Maze | Kahoot-Style Live Game</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="config.js"></script>
+    <script src="sync.js"></script>
+</head>
+<body>
+
+    <!-- ==========================================
+         SCREEN 1: KAHOOT ENTER NICKNAME
+         ========================================== -->
+    <div id="screenJoin" class="app-screen active">
+        <div class="kahoot-card">
+            <div class="kahoot-logo">⚡</div>
+            <h1 class="kahoot-title">ACM SPELL MAZE</h1>
+            <p class="kahoot-subtitle">Room: <strong id="displayRoomCode" style="color: var(--accent-blue);">ACM2026</strong></p>
+
+            <div id="joinErrorBanner" class="error-banner"></div>
+
+            <div class="input-group">
+                <input 
+                    type="text" 
+                    id="inputNickname" 
+                    class="kahoot-input" 
+                    placeholder="Enter your nickname" 
+                    maxlength="20" 
+                    autocomplete="off" 
+                    autofocus
+                >
+                <button id="btnJoinLobby" class="kahoot-btn">Join Game</button>
+                <button id="btnJoinViewLeaderboard" class="kahoot-btn" style="background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); color: #38bdf8; margin-top: 10px;">🏆 View Leaderboard</button>
+            </div>
+
+            <div class="kahoot-shapes">
+                <span class="k-shape k-triangle"></span>
+                <span class="k-shape k-diamond"></span>
+                <span class="k-shape k-circle"></span>
+                <span class="k-shape k-square"></span>
+            </div>
+
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 14px;">
+                Unique nicknames required. Up to 300 players supported!
+            </p>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         SCREEN 2: KAHOOT WAITING IN LOBBY
+         ========================================== -->
+    <div id="screenLobbyWaiting" class="app-screen">
+        <div class="kahoot-card">
+            <div style="margin-bottom: 14px;">
+                <span style="display: inline-block; background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; color: #34d399; font-weight: 800; padding: 6px 18px; border-radius: 50px; font-size: 0.95rem; letter-spacing: 0.5px;">
+                    ✅ YOU ARE READY!
+                </span>
+            </div>
+            <div class="avatar-badge">
+                <span>👤</span> <span id="waitingPlayerName">Player</span>
+            </div>
+            <h2 style="font-size: 1.6rem; font-weight: 800; margin-bottom: 6px;">You're in!</h2>
+            <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 20px;">
+                Your nickname is locked in. Watch the host's screen!
+            </p>
+
+            <div class="waiting-pulse-circle">
+                ⏳
+            </div>
+
+            <div class="kahoot-shapes">
+                <span class="k-shape k-triangle"></span>
+                <span class="k-shape k-diamond"></span>
+                <span class="k-shape k-circle"></span>
+                <span class="k-shape k-square"></span>
+            </div>
+
+            <p style="font-size: 0.9rem; color: #bae6fd; font-weight: 600; margin-top: 14px;">
+                Host is setting the round timer.<br>Get ready to hunt letters A, C, and M!
+            </p>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         SCREEN 3: ACTIVE MAZE GAME (PRESERVED MECHANICS)
+         ========================================== -->
+    <div id="screenGame" class="app-screen">
+        <div class="game-container">
+            <!-- Header -->
+            <header>
+                <div class="title-group">
+                    <span class="title-icon">⚡</span>
+                    <div>
+                        <h1>ACM SPELL MAZE <span class="difficulty-badge">Medium 25×25</span></h1>
+                    </div>
+                </div>
+                <div class="controls-actions">
+                    <button id="btnViewLeaderboard" class="btn-action">🏆 Leaderboard</button>
+                    <button id="soundToggleBtn" class="btn-action">🔊 Audio: On</button>
+                    <button id="restartBtn" class="btn-action">🔄 Refresh</button>
+                </div>
+            </header>
+
+            <!-- HUD Panel -->
+            <div class="hud-panel">
+                <div class="spell-tracker">
+                    <span class="spell-label">Targets:</span>
+                    <div class="letters-container">
+                        <div id="badgeA" class="letter-badge badge-a">A: [ ]</div>
+                        <div id="badgeC" class="letter-badge badge-c">C: [ ]</div>
+                        <div id="badgeM" class="letter-badge badge-m">M: [ ]</div>
+                    </div>
+                </div>
+
+                <div class="sequence-info">
+                    Collected: <span id="orderVal">None yet (Any sequence allowed)</span>
+                </div>
+
+                <div class="stats-group">
+                    <div class="stat-item">
+                        <span class="stat-title">Remaining</span>
+                        <span id="timerVal" class="stat-val">02:00</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-title">Steps</span>
+                        <span id="stepVal" class="stat-val">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Notification Banner -->
+            <div id="statusBanner" class="status-banner">
+                Explore the 3D labyrinth to uncover hidden spell letters A, C, and M!
+            </div>
+
+            <!-- Canvas Viewport -->
+            <div class="canvas-wrapper">
+                <canvas id="gameCanvas"></canvas>
+                <!-- Dynamic Virtual Floating Joystick Overlay for Mobile -->
+                <div id="virtualJoystickBase" class="virtual-joystick-base">
+                    <div id="virtualJoystickKnob" class="virtual-joystick-knob"></div>
+                </div>
+            </div>
+
+            <!-- Mobile Touch Virtual D-Pad -->
+            <div class="mobile-dpad">
+                <button id="btnUp" class="dpad-btn" aria-label="Up">▲</button>
+                <button id="btnLeft" class="dpad-btn" aria-label="Left">◀</button>
+                <button id="btnRight" class="dpad-btn" aria-label="Right">▶</button>
+                <button id="btnDown" class="dpad-btn" aria-label="Down">▼</button>
+            </div>
+
+            <!-- Game Features & Rules Legend -->
+            <div class="rules-legend">
+                <div class="legend-card">
+                    <span class="legend-icon">🎲</span>
+                    <div>
+                        <strong>Random Spawns:</strong> Letters A, C, M spawn at fresh randomized 3D coordinates every session.
+                    </div>
+                </div>
+                <div class="legend-card">
+                    <span class="legend-icon">🎥</span>
+                    <div>
+                        <strong>3D Follow Camera:</strong> Slanted top-down camera locked to your character in a dynamic localized viewport.
+                    </div>
+                </div>
+                <div class="legend-card">
+                    <span class="legend-icon">🕯️</span>
+                    <div>
+                        <strong>Dynamic Line of Sight:</strong> Real-time torch shadows conceal corridors until you turn the corner.
+                    </div>
+                </div>
+                <div class="legend-card">
+                    <span class="legend-icon">✨</span>
+                    <div>
+                        <strong>3D Floating Runes:</strong> Discover glowing, rotating 3D collectibles hidden deep in the labyrinth.
+                    </div>
+                </div>
+                <div class="legend-card">
+                    <span class="legend-icon">🔄</span>
+                    <div>
+                        <strong>Any Sequence:</strong> Collect letters in any arbitrary order (e.g., M ➔ A ➔ C or C ➔ M ➔ A).
+                    </div>
+                </div>
+                <div class="legend-card">
+                    <span class="legend-icon">🎮</span>
+                    <div>
+                        <strong>Controls:</strong> Virtual touch joystick, screen drag, D-Pad, or Arrow Keys / WASD.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         SCREEN 4: POST-FINISH WAITING ROOM
+         ========================================== -->
+    <div id="screenFinishedWaiting" class="app-screen">
+        <div class="kahoot-card">
+            <div style="font-size: 3rem; margin-bottom: 10px;">🎉</div>
+            <h2 id="finishedTitle" style="font-size: 1.8rem; font-weight: 900; color: #00f5d4; margin-bottom: 8px;">
+                SPELL COMPLETED!
+            </h2>
+            <p id="finishedDesc" style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 24px;">
+                You successfully found and collected letters A, C, and M!
+            </p>
+
+            <div class="modal-stats-grid" style="margin-bottom: 24px;">
+                <div class="modal-stat-box">
+                    <span class="modal-stat-label">Sequence</span>
+                    <span id="finishedOrderDisplay" class="modal-stat-value">-</span>
+                </div>
+                <div class="modal-stat-box">
+                    <span class="modal-stat-label">Your Time</span>
+                    <span id="finishedTimeDisplay" class="modal-stat-value">00:00</span>
+                </div>
+                <div class="modal-stat-box">
+                    <span class="modal-stat-label">Steps</span>
+                    <span id="finishedStepsDisplay" class="modal-stat-value">0</span>
+                </div>
+            </div>
+
+            <div class="waiting-pulse-circle">
+                ⏳
+            </div>
+
+            <p style="font-size: 0.95rem; color: #bae6fd; font-weight: 700; margin-top: 18px;">
+                Waiting for all players to finish or round timer to conclude...<br>
+                <span style="font-size: 0.82rem; color: var(--text-muted); font-weight: normal;">
+                    Round ends automatically once all players are done playing!
+                </span>
+            </p>
+
+            <button id="btnFinishedViewLeaderboard" class="kahoot-btn" style="max-width: 260px; margin: 14px auto 0; background: rgba(56, 189, 248, 0.16); border: 1px solid #38bdf8; color: #bae6fd; display: inline-block;">🏆 View Leaderboard</button>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         SCREEN 5: FINAL LEADERBOARD & PODIUM
+         ========================================== -->
+    <div id="screenLeaderboard" class="app-screen">
+        <div class="leaderboard-container">
+            <div style="text-align: center; margin-bottom: 16px;">
+                <span style="font-size: 2.8rem;">🏆</span>
+                <h1 style="font-size: 1.9rem; font-weight: 900; margin-top: 4px;">FINAL LEADERBOARD</h1>
+                <p id="myRankAnnouncement" style="font-size: 1.05rem; color: var(--accent-blue); font-weight: 700; margin-top: 6px;">
+                    Calculating results...
+                </p>
+            </div>
+
+            <!-- Kahoot Podium (Top 3) -->
+            <div class="podium-wrapper">
+                <!-- 2nd Place -->
+                <div class="podium-step">
+                    <div id="podium2Name" class="podium-player-name">-</div>
+                    <div id="podium2Time" class="podium-time">-</div>
+                    <div class="podium-bar podium-2">🥈 2</div>
+                </div>
+                <!-- 1st Place -->
+                <div class="podium-step">
+                    <div id="podium1Name" class="podium-player-name">-</div>
+                    <div id="podium1Time" class="podium-time">-</div>
+                    <div class="podium-bar podium-1">🥇 1</div>
+                </div>
+                <!-- 3rd Place -->
+                <div class="podium-step">
+                    <div id="podium3Name" class="podium-player-name">-</div>
+                    <div id="podium3Time" class="podium-time">-</div>
+                    <div class="podium-bar podium-3">🥉 3</div>
+                </div>
+            </div>
+
+            <!-- Full Rankings Table -->
+            <h3 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 10px;">All Player Standings</h3>
+            <table class="rankings-table">
+                <thead>
+                    <tr>
+                        <th style="width: 60px;">Rank</th>
+                        <th>Player</th>
+                        <th>Result</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboardBody">
+                    <!-- Populated dynamically -->
+                </tbody>
+            </table>
+
+            <div style="text-align: center; margin-top: 22px;">
+                <button id="btnBackToGame" class="kahoot-btn" style="max-width: 260px; margin: 0 auto; display: inline-block;">⬅️ Back to Game</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         3-SECOND KAHOOT COUNTDOWN OVERLAY
+         ========================================== -->
+    <div id="countdownOverlay" class="countdown-overlay">
+        <div id="countdownNumber" class="countdown-number">3</div>
+        <div id="countdownSubtitle" class="countdown-subtitle">GET READY!</div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="three.min.js"></script>
+    <script>
+        if (typeof THREE === "undefined") {
+            document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
+        }
+    </script>
+    <script src="audio.js"></script>
+    <script src="maze.js"></script>
+    <script src="game.js"></script>
+    <script src="player.js"></script>
+</body>
+</html>

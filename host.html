@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACM Maze Quest | Kahoot Host & Projector Screen</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            padding: 24px;
+            min-height: 100vh;
+            background-color: #060913;
+            background-image: 
+                radial-gradient(at 15% 15%, rgba(56, 189, 248, 0.15) 0px, transparent 50%),
+                radial-gradient(at 85% 85%, rgba(244, 63, 94, 0.12) 0px, transparent 50%);
+        }
+
+        .host-container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .host-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .projector-title {
+            font-size: 2.2rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, #ffffff 0%, #38bdf8 60%, #818cf8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .host-grid {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 24px;
+            align-items: stretch;
+        }
+
+        @media (max-width: 960px) {
+            .host-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .qr-panel {
+            background: rgba(15, 23, 42, 0.85);
+            border: 2px solid var(--border-color);
+            border-radius: 20px;
+            padding: 24px 20px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        #qrcodeContainer {
+            background: #ffffff;
+            padding: 12px;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            margin: 14px 0;
+            min-width: 220px;
+            min-height: 220px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #qrcodeContainer img, #qrcodeContainer canvas {
+            display: block;
+            margin: 0 auto;
+            max-width: 200px;
+            max-height: 200px;
+        }
+
+        .room-pin-tag {
+            font-size: 1.35rem;
+            font-weight: 900;
+            letter-spacing: 2px;
+            background: rgba(56, 189, 248, 0.15);
+            border: 1px solid var(--accent-blue);
+            color: #38bdf8;
+            padding: 6px 18px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+        }
+
+        .url-config-box {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 10px 12px;
+            width: 100%;
+            margin-bottom: 10px;
+            text-align: left;
+        }
+
+        .url-config-box label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-weight: 700;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .url-input {
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: #38bdf8;
+            padding: 6px 10px;
+            font-size: 0.85rem;
+            font-family: monospace;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        .lobby-panel {
+            background: rgba(15, 23, 42, 0.85);
+            border: 2px solid var(--border-color);
+            border-radius: 20px;
+            padding: 28px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .lobby-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .player-counter-badge {
+            font-size: 1.4rem;
+            font-weight: 900;
+            color: #00f5d4;
+            background: rgba(0, 245, 212, 0.12);
+            border: 1px solid rgba(0, 245, 212, 0.35);
+            padding: 6px 18px;
+            border-radius: 50px;
+        }
+
+        .player-tags-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            min-height: 220px;
+            max-height: 320px;
+            overflow-y: auto;
+            padding: 14px;
+            background: rgba(3, 7, 18, 0.5);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            align-content: flex-start;
+        }
+
+        .kahoot-player-tag {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 8px 18px;
+            border-radius: 50px;
+            font-weight: 700;
+            font-size: 1.05rem;
+            color: #f8fafc;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            animation: tagPop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        @keyframes tagPop {
+            0% { transform: scale(0.6); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .host-config-bar {
+            margin-top: 24px;
+            padding: 18px;
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .time-picker-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .time-select {
+            background: #0f172a;
+            border: 1px solid var(--accent-blue);
+            color: #ffffff;
+            font-size: 1.05rem;
+            font-weight: 700;
+            padding: 8px 14px;
+            border-radius: 8px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .btn-launch {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #ffffff;
+            font-size: 1.25rem;
+            font-weight: 900;
+            padding: 14px 34px;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 18px rgba(16, 185, 129, 0.4);
+            transition: all 0.2s ease;
+        }
+
+        .btn-launch:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px rgba(16, 185, 129, 0.6);
+        }
+
+        .host-game-view {
+            display: none;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .host-timer-banner {
+            background: rgba(15, 23, 42, 0.9);
+            border: 2px solid var(--accent-blue);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 0 25px rgba(56, 189, 248, 0.3);
+        }
+
+        .host-big-timer {
+            font-size: 3rem;
+            font-weight: 900;
+            font-variant-numeric: tabular-nums;
+            color: var(--accent-blue);
+        }
+
+        .host-podium-view {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+        }
+    </style>
+
+    <!-- Local Offline Scripts -->
+    <script src="qrcode.min.js"></script>
+    <script src="audio.js"></script>
+    <script src="config.js"></script>
+    <script src="sync.js"></script>
+</head>
+<body>
+
+    <div class="host-container">
+        <!-- Top Bar -->
+        <div class="host-header">
+            <div>
+                <span class="difficulty-badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border-color: #38bdf8;">
+                    HOST & PROJECTOR CONTROL
+                </span>
+                <h1 class="projector-title">ACM MAZE SHOWDOWN</h1>
+            </div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="btn-action" onclick="toggleFullscreen()">⛶ Fullscreen</button>
+                <button class="btn-action" onclick="testPlayerTab()" style="background: rgba(56, 189, 248, 0.25); border-color: #38bdf8;">
+                    👤 Open Player Tab
+                </button>
+                <button class="btn-action" onclick="simulatePlayer()" style="background: rgba(0, 245, 212, 0.2); border-color: #00f5d4;">
+                    ➕ Add Test Player
+                </button>
+            </div>
+        </div>
+
+
+
+        <!-- ==========================================
+             PHASE 1: LOBBY & QR CODE SHARING
+             ========================================== -->
+        <div id="hostLobbyPhase" class="host-grid">
+            <!-- Left: QR Code -->
+            <div class="qr-panel">
+                <h3 style="font-size: 1.3rem; font-weight: 800;">Scan to Join</h3>
+                <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">
+                    Scan with phone camera to open game link:
+                </p>
+
+                <!-- Dedicated QR Container -->
+                <div id="qrcodeContainer"></div>
+
+                <div class="room-pin-tag">
+                    PIN: <span id="pinDisplay">ACM2026</span>
+                </div>
+
+                <!-- Editable Phone Link Config -->
+                <div class="url-config-box">
+                    <label>📱 Web Link Encoded in QR Code:</label>
+                    <input type="text" id="encodedUrlInput" class="url-input" value="http://192.168.0.37:3000/index.html?room=ACM2026">
+                    <button class="btn-action" onclick="updateCustomQr()" style="width: 100%; margin-top: 6px; font-size: 0.78rem; justify-content: center;">
+                        🔄 Refresh QR Code with this Link
+                    </button>
+                </div>
+
+                <div style="display: flex; gap: 8px; width: 100%; margin-top: 4px;">
+                    <button class="btn-action" onclick="copyJoinLink()" style="flex: 1; justify-content: center;">
+                        📋 Copy Link
+                    </button>
+                    <button class="btn-action" onclick="testPlayerTab()" style="flex: 1; justify-content: center;">
+                        👤 Open Tab
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right: Players in Lobby & Launch Controls -->
+            <div class="lobby-panel">
+                <div class="lobby-header">
+                    <div>
+                        <h2 style="font-size: 1.5rem; font-weight: 800;">Waiting Room</h2>
+                        <p style="color: var(--text-muted); font-size: 0.88rem;">
+                            Players entering unique nicknames:
+                        </p>
+                    </div>
+                    <div class="player-counter-badge">
+                        <span id="hostPlayerCount">0</span> Joined
+                    </div>
+                </div>
+
+                <!-- Live Tag Wall -->
+                <div id="hostPlayerTags" class="player-tags-container">
+                    <div style="color: var(--text-muted); font-style: italic; margin: auto; text-align: center; padding: 20px;">
+                        Waiting for players to scan QR code and enter their names...
+                    </div>
+                </div>
+
+                <!-- Host Round Timer Configuration -->
+                <div class="host-config-bar">
+                    <div class="time-picker-group">
+                        <label style="font-weight: 700; font-size: 0.95rem; color: #f8fafc;">
+                            ⏱️ Round Time Limit:
+                        </label>
+                        <select id="timeLimitSelect" class="time-select" onchange="updateHostTimerPreview()">
+                            <option value="60">1 Min (01:00 ➔ 00:00)</option>
+                            <option value="120" selected>2 Min (02:00 ➔ 00:00)</option>
+                            <option value="180">3 Min (03:00 ➔ 00:00)</option>
+                            <option value="240">4 Min (04:00 ➔ 00:00)</option>
+                            <option value="300">5 Min (05:00 ➔ 00:00)</option>
+                            <option value="600">10 Min (10:00 ➔ 00:00)</option>
+                        </select>
+                    </div>
+
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn-action" onclick="hostResetRound()" style="background: rgba(239, 68, 68, 0.2); border-color: #ef4444; color: #fca5a5;">
+                            🗑️ Clear Lobby
+                        </button>
+                        <button id="btnHostStart" class="btn-launch" onclick="hostStartGame()">
+                            🚀 START GAME (3S TIMER)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==========================================
+             PHASE 2: GAME IN PROGRESS
+             ========================================== -->
+        <div id="hostGamePhase" class="host-game-view">
+            <div class="host-timer-banner">
+                <div>
+                    <span style="font-size: 0.85rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">ROUND TIME REMAINING</span>
+                    <div id="hostLiveTimerDisplay" class="host-big-timer">02:00</div>
+                </div>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <div style="font-size: 1.1rem; font-weight: 700; color: #00f5d4;">
+                        <span id="hostFinishersCount">0</span> of <span id="hostTotalPlayingCount">0</span> Finished
+                    </div>
+                    <button class="btn-action" onclick="hostEndGame()" style="background: rgba(239, 68, 68, 0.25); border-color: #ef4444; color: #fca5a5; padding: 10px 20px; font-weight: 800;">
+                        ⏹️ END GAME & REVEAL RESULTS
+                    </button>
+                </div>
+            </div>
+
+            <!-- Live Finisher Table -->
+            <div class="lobby-panel">
+                <h3 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 14px;">
+                    ⚡ Live Finisher Tracker
+                </h3>
+                <div id="liveFinishersList" style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="color: var(--text-muted); font-style: italic;">
+                        Players exploring maze... when letters A, C, N are found, times appear here!
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==========================================
+             PHASE 3: GRAND PODIUM & LEADERBOARD
+             ========================================== -->
+        <div id="hostPodiumPhase" class="host-podium-view">
+            <div class="leaderboard-container" style="width: 100%; max-width: 900px;">
+                <div style="text-align: center; margin-bottom: 24px;">
+                    <span style="font-size: 3.5rem;">🏆</span>
+                    <h1 style="font-size: 2.4rem; font-weight: 900; margin-top: 4px;">ROUND FINAL RESULTS</h1>
+                    <p style="color: var(--text-muted); font-size: 1rem;">
+                        Fastest spell casters who uncovered letters A, C, and M:
+                    </p>
+                </div>
+
+                <!-- Big Screen Podium -->
+                <div class="podium-wrapper" style="min-height: 250px;">
+                    <!-- 2nd Place -->
+                    <div class="podium-step" style="max-width: 180px;">
+                        <div id="hostPodium2Name" class="podium-player-name" style="font-size: 1.15rem;">-</div>
+                        <div id="hostPodium2Time" class="podium-time">-</div>
+                        <div class="podium-bar podium-2" style="height: 125px;">🥈 2</div>
+                    </div>
+                    <!-- 1st Place -->
+                    <div class="podium-step" style="max-width: 210px;">
+                        <div id="hostPodium1Name" class="podium-player-name" style="font-size: 1.3rem; color: #f59e0b;">-</div>
+                        <div id="hostPodium1Time" class="podium-time" style="font-size: 0.9rem;">-</div>
+                        <div class="podium-bar podium-1" style="height: 170px;">🥇 1</div>
+                    </div>
+                    <!-- 3rd Place -->
+                    <div class="podium-step" style="max-width: 180px;">
+                        <div id="hostPodium3Name" class="podium-player-name" style="font-size: 1.15rem;">-</div>
+                        <div id="hostPodium3Time" class="podium-time">-</div>
+                        <div class="podium-bar podium-3" style="height: 95px;">🥉 3</div>
+                    </div>
+                </div>
+
+                <!-- Full Standings Table -->
+                <h3 style="font-size: 1.15rem; font-weight: 800; margin-bottom: 12px;">Full Player Standings</h3>
+                <table class="rankings-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 70px;">Rank</th>
+                            <th>Player Name</th>
+                            <th>Completion Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="hostLeaderboardBody">
+                        <!-- Populated dynamically -->
+                    </tbody>
+                </table>
+
+                <div style="margin-top: 30px; text-align: center;">
+                    <button class="btn-launch" onclick="hostResetRound()" style="padding: 12px 36px; font-size: 1.1rem;">
+                        🔄 Play Another Round / Next Maze
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3-Second Kahoot Countdown Overlay on Host -->
+    <div id="hostCountdownOverlay" class="countdown-overlay">
+        <div id="hostCountdownNumber" class="countdown-number">3</div>
+        <div class="countdown-subtitle">GAME STARTING FOR EVERYONE!</div>
+    </div>
+
+    <!-- Script Controller -->
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomId = (urlParams.get("room") || "ACM2026").toUpperCase();
+        document.getElementById("pinDisplay").innerText = roomId;
+
+        const sync = new GameSync(roomId);
+        const sound = new SoundManager();
+
+        // Detect or Default to the Wi-Fi Network HTTP URL
+        let defaultJoinUrl = "";
+        if (window.location.protocol.startsWith("http")) {
+            // When hosted via web server (e.g. http://192.168.0.37:3000/host.html)
+            defaultJoinUrl = `${window.location.origin}/index.html?room=${roomId}`;
+        } else {
+            // When opened locally via file://, encode the HTTP server Wi-Fi URL so phones can open it!
+            defaultJoinUrl = `http://192.168.0.37:3000/index.html?room=${roomId}`;
+        }
+
+        const urlInput = document.getElementById("encodedUrlInput");
+        if (urlInput) urlInput.value = defaultJoinUrl;
+
+        // Render QR Code Safely with exact HTTP link
+        function generateQRCode(url) {
+            const container = document.getElementById("qrcodeContainer");
+            if (!container) return;
+            container.innerHTML = "";
+
+            try {
+                if (typeof QRCode !== "undefined") {
+                    new QRCode(container, {
+                        text: url,
+                        width: 200,
+                        height: 200,
+                        colorDark: "#060913",
+                        colorLight: "#ffffff",
+                        correctLevel: QRCode.CorrectLevel.M
+                    });
+                    return;
+                }
+            } catch (err) {
+                console.warn("Local QRCode generator error:", err);
+            }
+
+            // Fallback: Online QR image generator
+            const img = document.createElement("img");
+            img.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`;
+            img.alt = "QR Code to Join";
+            img.style.borderRadius = "10px";
+            container.appendChild(img);
+        }
+
+        function updateCustomQr() {
+            const newUrl = document.getElementById("encodedUrlInput").value.trim();
+            if (newUrl) {
+                generateQRCode(newUrl);
+            }
+        }
+
+        // Generate QR code right away
+        generateQRCode(defaultJoinUrl);
+
+        function copyJoinLink() {
+            const linkToCopy = document.getElementById("encodedUrlInput").value;
+            navigator.clipboard.writeText(linkToCopy).then(() => {
+                alert("Player join link copied to clipboard:\n" + linkToCopy);
+            }).catch(() => {
+                prompt("Copy this join URL:", linkToCopy);
+            });
+        }
+
+        function testPlayerTab() {
+            const linkToOpen = document.getElementById("encodedUrlInput").value;
+            window.open(linkToOpen, "_blank");
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        }
+
+        // Host Timer & State
+        let hostRemainingSecs = 120;
+        let hostTimerInterval = null;
+        let hostCountdownInterval = null;
+
+        // Listen for Real-Time Updates
+        sync.onUpdate((state) => {
+            const players = Object.values(state.players || {});
+            const countEl = document.getElementById("hostPlayerCount");
+            if (countEl) countEl.innerText = players.length;
+
+            if (state.status === "LOBBY") {
+                if (hostAutoEndTimeout) {
+                    clearTimeout(hostAutoEndTimeout);
+                    hostAutoEndTimeout = null;
+                }
+                if (hostTimerInterval) {
+                    clearInterval(hostTimerInterval);
+                    hostTimerInterval = null;
+                }
+                const selectEl = document.getElementById("timeLimitSelect");
+                const limit = (selectEl && selectEl.value) ? parseInt(selectEl.value) : (state.timeLimit || 120);
+                const display = document.getElementById("hostLiveTimerDisplay");
+                if (display) {
+                    display.style.color = "";
+                    const mins = String(Math.floor(limit / 60)).padStart(2, '0');
+                    const secs = String(limit % 60).padStart(2, '0');
+                    display.innerText = `${mins}:${secs}`;
+                }
+                const notice = document.getElementById("hostAllFinishedNotice");
+                if (notice) notice.remove();
+                hideHostCountdown();
+                showPhase("hostLobbyPhase");
+                renderLobbyPlayers(players);
+            } else if (state.status === "COUNTDOWN") {
+                if (hostAutoEndTimeout) {
+                    clearTimeout(hostAutoEndTimeout);
+                    hostAutoEndTimeout = null;
+                }
+                showHostCountdown();
+            } else if (state.status === "STARTED") {
+                hideHostCountdown();
+                showPhase("hostGamePhase");
+                updateGamePhase(state, players);
+            } else if (state.status === "ENDED") {
+                if (hostAutoEndTimeout) {
+                    clearTimeout(hostAutoEndTimeout);
+                    hostAutoEndTimeout = null;
+                }
+                if (hostTimerInterval) {
+                    clearInterval(hostTimerInterval);
+                    hostTimerInterval = null;
+                }
+                hideHostCountdown();
+                showPhase("hostPodiumPhase");
+                renderPodiumAndLeaderboard(players);
+            }
+        });
+
+        // 3-Second Kahoot Countdown on Host Screen
+        let isHostCountingDown = false;
+        function showHostCountdown() {
+            if (isHostCountingDown) return; // Prevent repeated reset while countdown is actively ticking
+            isHostCountingDown = true;
+
+            const overlay = document.getElementById("hostCountdownOverlay");
+            const numEl = document.getElementById("hostCountdownNumber");
+            if (!overlay || !numEl) return;
+
+            sound.init();
+            overlay.classList.add("active");
+            let count = 3;
+            numEl.textContent = count;
+            numEl.style.animation = 'none';
+            void numEl.offsetWidth;
+            numEl.style.animation = 'zoomPulse 1s ease-in-out infinite';
+            sound.playCountdownBeep(false);
+
+            if (hostCountdownInterval) clearInterval(hostCountdownInterval);
+            hostCountdownInterval = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    numEl.textContent = count;
+                    numEl.style.animation = 'none';
+                    void numEl.offsetWidth;
+                    numEl.style.animation = 'zoomPulse 1s ease-in-out infinite';
+                    sound.playCountdownBeep(false);
+                } else if (count === 0) {
+                    numEl.textContent = "GO!";
+                    numEl.style.animation = 'none';
+                    void numEl.offsetWidth;
+                    numEl.style.animation = 'zoomPulse 1s ease-in-out infinite';
+                    sound.playCountdownBeep(true);
+
+                    // Switch immediately to game phase on host screen at GO!
+                    showPhase("hostGamePhase");
+                    setTimeout(() => {
+                        hideHostCountdown();
+                    }, 350);
+
+                    clearInterval(hostCountdownInterval);
+                    hostCountdownInterval = null;
+                }
+            }, 1000);
+        }
+
+        function hideHostCountdown() {
+            isHostCountingDown = false;
+            if (hostCountdownInterval) {
+                clearInterval(hostCountdownInterval);
+                hostCountdownInterval = null;
+            }
+            const overlay = document.getElementById("hostCountdownOverlay");
+            if (overlay) overlay.classList.remove("active");
+        }
+
+        // Quick simulation for testing
+        async function simulatePlayer() {
+            const names = ["Rohan", "Ananya", "Vikram", "Sneha", "Karan", "Pooja", "Arjun", "Neha"];
+            const randomName = names[Math.floor(Math.random() * names.length)] + "_" + Math.floor(Math.random() * 90 + 10);
+            await sync.joinPlayer(randomName);
+        }
+
+        function showPhase(phaseId) {
+            document.getElementById("hostLobbyPhase").style.display = phaseId === "hostLobbyPhase" ? "grid" : "none";
+            document.getElementById("hostGamePhase").style.display = phaseId === "hostGamePhase" ? "flex" : "none";
+            document.getElementById("hostPodiumPhase").style.display = phaseId === "hostPodiumPhase" ? "flex" : "none";
+        }
+
+        let lastRenderedPlayerCount = -1;
+        let lastRenderedPlayerHash = "";
+
+        function renderLobbyPlayers(players) {
+            const container = document.getElementById("hostPlayerTags");
+            if (!container) return;
+
+            if (players.length === 0) {
+                if (lastRenderedPlayerCount !== 0) {
+                    lastRenderedPlayerCount = 0;
+                    lastRenderedPlayerHash = "";
+                    container.innerHTML = `
+                        <div style="color: var(--text-muted); font-style: italic; margin: auto; text-align: center; padding: 20px;">
+                            Waiting for players to scan QR code and enter their names...
+                        </div>
+                    `;
+                }
+                return;
+            }
+
+            // Quick change detection: skip DOM destruction if player count & tail identity match
+            const tailId = players[players.length - 1]?.id || players[players.length - 1]?.name || "";
+            const currentHash = `${players.length}_${tailId}`;
+            if (currentHash === lastRenderedPlayerHash && players.length === lastRenderedPlayerCount) {
+                return; // State unchanged, retain DOM nodes
+            }
+            lastRenderedPlayerHash = currentHash;
+            lastRenderedPlayerCount = players.length;
+
+            const colors = ["#ffb703", "#00f5d4", "#ff006e", "#38bdf8", "#a855f7", "#10b981", "#f97316"];
+            const fragment = document.createDocumentFragment();
+
+            players.forEach((p, idx) => {
+                const tag = document.createElement("div");
+                tag.className = "kahoot-player-tag";
+                const col = colors[idx % colors.length];
+                tag.style.borderColor = col;
+                tag.innerHTML = `<span style="color: ${col};">👤</span> ${escapeHtml(p.name)}`;
+                fragment.appendChild(tag);
+            });
+
+            container.innerHTML = "";
+            container.appendChild(fragment);
+        }
+
+        function updateHostTimerPreview() {
+            const selectEl = document.getElementById("timeLimitSelect");
+            if (!selectEl) return;
+            const limit = parseInt(selectEl.value) || 120;
+            hostRemainingSecs = limit;
+            const display = document.getElementById("hostLiveTimerDisplay");
+            if (display) {
+                const mins = String(Math.floor(limit / 60)).padStart(2, '0');
+                const secs = String(limit % 60).padStart(2, '0');
+                display.innerText = `${mins}:${secs}`;
+            }
+            if (sync && typeof sync.setLobbyTimeLimit === 'function') {
+                sync.setLobbyTimeLimit(limit);
+            }
+        }
+
+        function hostStartGame() {
+            sound.init();
+            const timeLimit = parseInt(document.getElementById("timeLimitSelect").value) || 120;
+            sync.startHostGame(timeLimit);
+        }
+
+        let hostAutoEndTimeout = null;
+
+        function updateGamePhase(state, players) {
+            document.getElementById("hostTotalPlayingCount").innerText = players.length;
+            const finishers = players.filter(p => p.finished);
+            document.getElementById("hostFinishersCount").innerText = finishers.length;
+
+            // Automatically conclude round when all players have finished
+            if (state.status === "STARTED" && players.length > 0 && finishers.length >= players.length) {
+                if (!hostAutoEndTimeout) {
+                    const timerDisplay = document.getElementById("hostLiveTimerDisplay");
+                    if (timerDisplay) {
+                        timerDisplay.style.color = "#00f5d4";
+                    }
+                    const listEl = document.getElementById("liveFinishersList");
+                    if (listEl && !document.getElementById("hostAllFinishedNotice")) {
+                        const notice = document.createElement("div");
+                        notice.id = "hostAllFinishedNotice";
+                        notice.style.background = "rgba(16, 185, 129, 0.25)";
+                        notice.style.border = "1px solid #10b981";
+                        notice.style.color = "#34d399";
+                        notice.style.padding = "10px 16px";
+                        notice.style.borderRadius = "8px";
+                        notice.style.fontWeight = "800";
+                        notice.style.textAlign = "center";
+                        notice.innerText = "🎉 All players finished! Concluding round & revealing podium...";
+                        listEl.prepend(notice);
+                    }
+                    hostAutoEndTimeout = setTimeout(() => {
+                        hostEndGame();
+                        hostAutoEndTimeout = null;
+                    }, 1200);
+                }
+            }
+
+            if (!hostTimerInterval && state.startTime) {
+                const elapsed = Math.floor((Date.now() - state.startTime) / 1000);
+                hostRemainingSecs = Math.max(0, (state.timeLimit || 120) - elapsed);
+                const initMins = String(Math.floor(hostRemainingSecs / 60)).padStart(2, '0');
+                const initSecs = String(hostRemainingSecs % 60).padStart(2, '0');
+                const display = document.getElementById("hostLiveTimerDisplay");
+                if (display) display.innerText = `${initMins}:${initSecs}`;
+
+                hostTimerInterval = setInterval(() => {
+                    hostRemainingSecs--;
+                    const clamped = Math.max(0, hostRemainingSecs);
+                    const mins = String(Math.floor(clamped / 60)).padStart(2, '0');
+                    const secs = String(clamped % 60).padStart(2, '0');
+                    if (display) display.innerText = `${mins}:${secs}`;
+
+                    if (hostRemainingSecs <= 0) {
+                        clearInterval(hostTimerInterval);
+                        hostTimerInterval = null;
+                        hostEndGame();
+                    }
+                }, 1000);
+            }
+
+        let lastFinishersHash = "";
+
+        const listEl = document.getElementById("liveFinishersList");
+        if (finishers.length === 0) {
+            if (lastFinishersHash !== "0") {
+                lastFinishersHash = "0";
+                listEl.innerHTML = `
+                    <div style="color: var(--text-muted); font-style: italic;">
+                        Players exploring maze... when letters A, C, M are found, times appear here!
+                    </div>
+                `;
+            }
+        } else {
+            const currentHash = `${finishers.length}_${finishers.map(f => (f.id || f.name) + (f.finishTimeSeconds || 0)).join(',')}`;
+            if (currentHash !== lastFinishersHash) {
+                lastFinishersHash = currentHash;
+                finishers.sort((a, b) => (a.finishTimeSeconds || 9999) - (b.finishTimeSeconds || 9999));
+                const fragment = document.createDocumentFragment();
+                finishers.forEach((f, idx) => {
+                    const row = document.createElement("div");
+                    row.className = "rank-item";
+                    row.style.background = idx === 0 ? "rgba(245, 158, 11, 0.18)" : "rgba(255, 255, 255, 0.05)";
+                    row.innerHTML = `
+                        <span>#${idx + 1} <strong>${escapeHtml(f.name)}</strong></span>
+                        <span style="font-family: monospace; color: #00f5d4;">⏱️ ${f.finishTimeFormatted}</span>
+                    `;
+                    fragment.appendChild(row);
+                });
+                listEl.innerHTML = "";
+                listEl.appendChild(fragment);
+            }
+        }
+        }
+
+        function hostEndGame() {
+            if (hostAutoEndTimeout) {
+                clearTimeout(hostAutoEndTimeout);
+                hostAutoEndTimeout = null;
+            }
+            if (hostTimerInterval) {
+                clearInterval(hostTimerInterval);
+                hostTimerInterval = null;
+            }
+            sync.endHostGame();
+        }
+
+        function renderPodiumAndLeaderboard(players) {
+            players.sort((a, b) => {
+                if (a.finished && !b.finished) return -1;
+                if (!a.finished && b.finished) return 1;
+                if (a.finished && b.finished) {
+                    return (a.finishTimeSeconds || 9999) - (b.finishTimeSeconds || 9999);
+                }
+                return 0;
+            });
+
+            const p1Name = document.getElementById("hostPodium1Name");
+            const p1Time = document.getElementById("hostPodium1Time");
+            const p2Name = document.getElementById("hostPodium2Name");
+            const p2Time = document.getElementById("hostPodium2Time");
+            const p3Name = document.getElementById("hostPodium3Name");
+            const p3Time = document.getElementById("hostPodium3Time");
+
+            if (players[0]) {
+                p1Name.innerText = players[0].name;
+                p1Time.innerText = players[0].finished ? `⏱️ ${players[0].finishTimeFormatted}` : 'Incomplete';
+            } else {
+                p1Name.innerText = '-'; p1Time.innerText = '-';
+            }
+
+            if (players[1]) {
+                p2Name.innerText = players[1].name;
+                p2Time.innerText = players[1].finished ? `⏱️ ${players[1].finishTimeFormatted}` : 'Incomplete';
+            } else {
+                p2Name.innerText = '-'; p2Time.innerText = '-';
+            }
+
+            if (players[2]) {
+                p3Name.innerText = players[2].name;
+                p3Time.innerText = players[2].finished ? `⏱️ ${players[2].finishTimeFormatted}` : 'Incomplete';
+            } else {
+                p3Name.innerText = '-'; p3Time.innerText = '-';
+            }
+
+            const tbody = document.getElementById("hostLeaderboardBody");
+            tbody.innerHTML = "";
+            players.forEach((p, idx) => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td style="font-weight: 800;">#${idx + 1}</td>
+                    <td>${escapeHtml(p.name)}</td>
+                    <td>${p.finished ? `<span style="color: #00f5d4; font-weight: 700;">Completed (${p.finishTimeFormatted})</span>` : '<span style="color: #94a3b8;">Incomplete</span>'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function hostResetRound() {
+            sync.resetRoom();
+        }
+
+        function escapeHtml(s) {
+            return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+    </script>
+</body>
+</html>
