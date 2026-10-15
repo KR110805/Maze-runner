@@ -43,16 +43,6 @@ function request(urlPath, options = {}) {
     });
 }
 
-// Fetch HOST_SECRET securely from Secret Manager for the smoke test without printing it
-function getHostSecret() {
-    try {
-        const secret = execSync('gcloud secrets versions access 1 --secret=HOST_SECRET --project=acm-maze-runner --account=ultrovision11@gmail.com', { encoding: 'utf8' }).trim();
-        return secret;
-    } catch (e) {
-        throw new Error('Failed to fetch HOST_SECRET from Secret Manager: ' + e.message);
-    }
-}
-
 async function runSmokeTests() {
     let passed = 0;
     let failed = 0;
@@ -67,12 +57,15 @@ async function runSmokeTests() {
         }
     }
 
-    console.log('--- Step 1: Web Entrypoints & Login Flow ---');
-    const loginRes = await request('/login');
-    assert('Host Login Page Available', loginRes.status === 200 && typeof loginRes.data === 'string' && loginRes.data.includes('Host Authentication'), `Status: ${loginRes.status}`);
+    console.log('--- Step 1: Web Entrypoints & Direct Host Access ---');
+    const rootRes = await request('/');
+    assert('Direct Root Serves Host Dashboard', rootRes.status === 200 && typeof rootRes.data === 'string' && rootRes.data.includes('HOST & PROJECTOR CONTROL'), `Status: ${rootRes.status}`);
 
-    const hostUnauthRes = await request('/host.html');
-    assert('Unauthenticated Host Dashboard Redirects to /login', hostUnauthRes.status === 302 && hostUnauthRes.headers['location'] === '/login', `Status: ${hostUnauthRes.status}, Location: ${hostUnauthRes.headers['location']}`);
+    const hostRes = await request('/host.html');
+    assert('Host Dashboard Directly Accessible Without Login', hostRes.status === 200 && typeof hostRes.data === 'string' && hostRes.data.includes('HOST & PROJECTOR CONTROL'), `Status: ${hostRes.status}`);
+
+    const loginRes = await request('/login');
+    assert('Legacy /login Redirects to /host.html', loginRes.status === 302 && loginRes.headers['location'] === '/host.html', `Status: ${loginRes.status}, Location: ${loginRes.headers['location']}`);
 
     const playerRes = await request('/index.html');
     assert('Player Client HTML Delivery', playerRes.status === 200 && typeof playerRes.data === 'string' && playerRes.data.includes('canvas'), `Status: ${playerRes.status}`);
@@ -86,79 +79,36 @@ async function runSmokeTests() {
     const faviconRes = await request('/favicon.ico');
     assert('Favicon Endpoint Delivery', faviconRes.status === 200 || faviconRes.status === 204, `Status: ${faviconRes.status}`);
 
-    console.log('\n--- Step 2: Host Session, Cookie & CSRF Security Controls ---');
-    const hostSecret = getHostSecret();
-
-    // 1. Invalid Login Attempt
-    const badLoginRes = await request('/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: { password: 'wrong-host-password-999' }
-    });
-    assert('Invalid Password Rejected', badLoginRes.status === 401 || (badLoginRes.status === 302 && badLoginRes.headers['location']?.includes('error')), `Status: ${badLoginRes.status}`);
-
-    // 2. Valid Login Attempt
-    const validLoginRes = await request('/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: { password: hostSecret }
-    });
-    assert('Valid Host Login Success', validLoginRes.status === 200 || validLoginRes.status === 302, `Status: ${validLoginRes.status}`);
-
-    // Extract Set-Cookie headers
-    const setCookieHeaders = validLoginRes.headers['set-cookie'] || [];
-    const sessionCookieStr = setCookieHeaders.find(c => c.startsWith('acm_host_session='));
-    const csrfCookieStr = setCookieHeaders.find(c => c.startsWith('acm_csrf_token='));
-
-    assert('Session Cookie Set with HttpOnly & SameSite=Strict', Boolean(sessionCookieStr && sessionCookieStr.includes('HttpOnly') && sessionCookieStr.includes('SameSite=Strict')));
-    assert('CSRF Cookie Set', Boolean(csrfCookieStr));
-
-    const sessionCookieVal = sessionCookieStr?.split(';')[0];
-    const csrfCookieVal = csrfCookieStr?.split(';')[0]?.replace('acm_csrf_token=', '');
-    const fullCookieHeader = `${sessionCookieVal}; acm_csrf_token=${csrfCookieVal}`;
-
-    // 3. Test Cookie-Authenticated Admin Action with CSRF
-    const cookieAdminAction = await request('/api/room', {
+    console.log('\n--- Step 2: Event Mode & Host Control (No Login/Secret Required) ---');
+    // 1. Direct Event-Mode Host Action (No password or secret key required!)
+    const eventAdminAction = await request('/api/room', {
         method: 'POST',
         headers: {
-            'Cookie': fullCookieHeader,
-            'x-csrf-token': csrfCookieVal
+            'x-requested-with': 'ACMHostDashboard',
+            'x-event-mode': 'true',
+            'origin': BASE_URL
         },
         body: { action: 'config', roomId: TEST_ROOM, timeLimit: 120 }
     });
-    assert('Cookie + CSRF Authorized Admin Action', cookieAdminAction.status === 200, `Status: ${cookieAdminAction.status}`);
+    assert('Direct Event-Mode Admin Action Without Secret/Login', eventAdminAction.status === 200, `Status: ${eventAdminAction.status}`);
 
-    // 4. Test Cookie-Authenticated Action WITHOUT CSRF (must be rejected)
-    const noCsrfAction = await request('/api/room', {
+    // 2. Cross-site untrusted origin rejected
+    const crossOriginAction = await request('/api/room', {
         method: 'POST',
         headers: {
-            'Cookie': fullCookieHeader
+            'x-requested-with': 'ACMHostDashboard',
+            'origin': 'https://unauthorized-third-party.com'
         },
         body: { action: 'config', roomId: TEST_ROOM, timeLimit: 90 }
     });
-    assert('Cookie Action Rejected Without CSRF Token', noCsrfAction.status === 401, `Status: ${noCsrfAction.status}`);
+    assert('Cross-Origin Request Rejected', crossOriginAction.status === 401, `Status: ${crossOriginAction.status}`);
 
-    // 5. Direct Token Header Still Supported
-    const directTokenAction = await request('/api/room', {
-        method: 'POST',
-        headers: { 'x-host-token': hostSecret },
-        body: { action: 'config', roomId: TEST_ROOM, timeLimit: 120 }
-    });
-    assert('Direct Token Header Authorized', directTokenAction.status === 200, `Status: ${directTokenAction.status}`);
-
-    // 6. Unauthorized Action Rejection
+    // 3. Bare Unauthenticated Action Rejection
     const unauthHost = await request('/api/room', {
         method: 'POST',
         body: { action: 'countdown', roomId: TEST_ROOM }
     });
-    assert('Unauthorized Host Action Rejection', unauthHost.status === 401, `Status: ${unauthHost.status}`);
-
-    const badTokenHost = await request('/api/room', {
-        method: 'POST',
-        headers: { 'x-host-token': 'wrong-token-value' },
-        body: { action: 'countdown', roomId: TEST_ROOM }
-    });
-    assert('Incorrect Token Rejection', badTokenHost.status === 401, `Status: ${badTokenHost.status}`);
+    assert('Bare Unauthorized Action Rejection', unauthHost.status === 401, `Status: ${unauthHost.status}`);
 
     console.log('\n--- Step 3: Room Lifecycle & Redis Integration ---');
     const initRoom = await request(`/api/room?roomId=${TEST_ROOM}`);
@@ -189,9 +139,15 @@ async function runSmokeTests() {
     assert('Reconnection Idempotency (No duplicate player)', playersCount === 2, `Total Players: ${playersCount}`);
 
     console.log('\n--- Step 5: Synchronized Countdown & Authoritative Start ---');
+    const eventHeaders = {
+        'x-requested-with': 'ACMHostDashboard',
+        'x-event-mode': 'true',
+        'origin': BASE_URL
+    };
+
     const startCountdown = await request('/api/room', {
         method: 'POST',
-        headers: { 'x-host-token': hostSecret },
+        headers: eventHeaders,
         body: { action: 'countdown', roomId: TEST_ROOM }
     });
     assert('Host Starts Countdown', startCountdown.status === 200 && startCountdown.data?.room?.status === 'COUNTDOWN');
@@ -210,7 +166,7 @@ async function runSmokeTests() {
     // Start match
     const startMatch = await request('/api/room', {
         method: 'POST',
-        headers: { 'x-host-token': hostSecret },
+        headers: eventHeaders,
         body: { action: 'start', roomId: TEST_ROOM }
     });
     assert('Match Transitions to STARTED', startMatch.status === 200 && startMatch.data?.room?.status === 'STARTED');
@@ -259,7 +215,7 @@ async function runSmokeTests() {
     console.log('\n--- Step 7: Host Match End & Reset ---');
     const resetMatch = await request('/api/room', {
         method: 'POST',
-        headers: { 'x-host-token': hostSecret },
+        headers: eventHeaders,
         body: { action: 'reset', roomId: TEST_ROOM }
     });
     assert('Host Room Reset', resetMatch.status === 200 && resetMatch.data?.room?.status === 'LOBBY' && Object.keys(resetMatch.data?.room?.players || {}).length === 0);

@@ -288,38 +288,92 @@ function verifySessionToken(sessionToken, secret) {
     return { sessionId, timestamp, expectedCsrf };
 }
 
-function verifyHostAuthorization(req) {
-    const isProd = process.env.NODE_ENV === "production";
+function isAllowedEventOrigin(req) {
+    const origin = req.headers && (req.headers['origin'] || req.headers['referer']);
+    const secFetchSite = req.headers && req.headers['sec-fetch-site'];
 
-    // In production, require an explicitly configured, non-default secret
-    if (isProd) {
-        if (!process.env.HOST_SECRET || process.env.HOST_SECRET === "acm-host-secret-2026") {
-            console.error("CRITICAL SECURITY ALERT: Insecure or default HOST_SECRET in production. Administrative request rejected.");
+    // Reject explicitly cross-site requests
+    if (secFetchSite === 'cross-site') {
+        return false;
+    }
+
+    // If an EVENT_CONTROL_ORIGIN is configured, enforce it
+    const configuredOrigins = process.env.EVENT_CONTROL_ORIGIN
+        ? process.env.EVENT_CONTROL_ORIGIN.split(',').map(s => s.trim().toLowerCase())
+        : null;
+
+    if (origin) {
+        try {
+            const originUrl = new URL(origin);
+            const originHost = originUrl.host.toLowerCase();
+            const originProtocol = originUrl.protocol;
+            const fullOrigin = `${originProtocol}//${originHost}`;
+
+            if (configuredOrigins && configuredOrigins.length > 0) {
+                return configuredOrigins.some(o => o === fullOrigin || o === originHost);
+            }
+
+            // Default allowed: match current request host or localhost/loopback
+            const reqHost = (req.headers && req.headers.host || '').toLowerCase();
+            if (reqHost && originHost === reqHost) {
+                return true;
+            }
+            if (originHost === 'localhost' || originHost.startsWith('localhost:') || originHost.startsWith('127.0.0.1')) {
+                return true;
+            }
+            // If origin is from an arbitrary external domain, reject
+            return false;
+        } catch (e) {
             return false;
         }
     }
 
-    const configuredSecret = process.env.HOST_SECRET || (!isProd ? HOST_SECRET : null);
-    if (!configuredSecret) return false;
+    // In direct non-browser requests or tests where origin is omitted, allow as long as sec-fetch-site isn't cross-site
+    return true;
+}
 
-    // 1. Direct API Token Header (for automated test suites and backward compatibility)
-    const authHeader = req.headers && (req.headers['x-host-token'] || req.headers['authorization']?.replace(/^Bearer\s+/i, ''));
-    const bodyToken = req.body && req.body.hostToken;
-    const queryToken = !isProd && req.query ? req.query.hostToken : null;
-    const directToken = authHeader || bodyToken || queryToken;
+function verifyHostAuthorization(req) {
+    // 1. Direct Event Mode: Host Dashboard Control (No password or secret key required)
+    // Validates event control headers and enforces same-origin / EVENT_CONTROL_ORIGIN
+    const hasEventControlHeader = req.headers && (
+        req.headers['x-requested-with'] === 'ACMHostDashboard' ||
+        req.headers['x-event-mode'] === 'true' ||
+        req.headers['x-acm-event-control'] === 'true'
+    );
 
-    if (directToken && safeCompare(directToken, configuredSecret)) {
-        return true;
+    if (hasEventControlHeader) {
+        if (isAllowedEventOrigin(req)) {
+            return true;
+        } else {
+            console.warn("Administrative request rejected: Unauthorized origin or cross-site request.");
+            return false;
+        }
     }
 
-    // 2. HTTP-Only Host Session Cookie (with CSRF verification on mutations)
+    // 2. Direct API Token Header (for backward compatibility if token is configured or passed)
+    const configuredSecret = process.env.HOST_SECRET || (process.env.NODE_ENV !== "production" ? HOST_SECRET : null);
+    const authHeader = req.headers && (req.headers['x-host-token'] || req.headers['authorization']?.replace(/^Bearer\s+/i, ''));
+    const bodyToken = req.body && req.body.hostToken;
+    const queryToken = process.env.NODE_ENV !== "production" && req.query ? req.query.hostToken : null;
+    const directToken = authHeader || bodyToken || queryToken;
+
+    if (directToken) {
+        if (process.env.NODE_ENV === "production" && (!process.env.HOST_SECRET || process.env.HOST_SECRET === "acm-host-secret-2026")) {
+            // Reject default dev secret in production when used as token
+            return false;
+        }
+        if (configuredSecret && safeCompare(directToken, configuredSecret)) {
+            return true;
+        }
+        return false;
+    }
+
+    // 3. HTTP-Only Host Session Cookie (for backward compatibility if cookie is present)
     const cookies = parseCookies(req);
     const sessionCookie = cookies['acm_host_session'];
-    if (sessionCookie) {
+    if (sessionCookie && configuredSecret) {
         const session = verifySessionToken(sessionCookie, configuredSecret);
         if (session) {
-            // CSRF Protection: For administrative POST requests authenticated via cookie,
-            // require a valid x-csrf-token matching the session's HMAC CSRF token.
             if (req.method === 'POST') {
                 const providedCsrf = req.headers && (req.headers['x-csrf-token'] || req.headers['x-xsrf-token']);
                 if (!providedCsrf || !safeCompare(providedCsrf, session.expectedCsrf)) {
@@ -382,7 +436,7 @@ async function handler(req, res) {
     // Enable CORS for all devices & origins
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, If-None-Match, x-host-token, Authorization, x-csrf-token");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, If-None-Match, x-host-token, Authorization, x-csrf-token, x-requested-with, x-event-mode, x-acm-event-control");
     res.setHeader("Access-Control-Expose-Headers", "ETag");
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
 

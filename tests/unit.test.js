@@ -321,6 +321,40 @@ describe('3. Host Authorization & Security Controls', () => {
         assert.strictEqual(result.body.room.timeLimit, 180);
         assert.strictEqual(result.body.room.maxCapacity, 600);
     });
+
+    it('accepts administrative actions in event mode without password or secret key (HTTP 200)', async () => {
+        const { req, res, getResult } = mockRequestResponse({
+            method: 'POST',
+            headers: {
+                'x-requested-with': 'ACMHostDashboard',
+                'x-event-mode': 'true',
+                'origin': 'https://acm-maze-runner-153208250440.asia-south1.run.app',
+                'host': 'acm-maze-runner-153208250440.asia-south1.run.app'
+            },
+            body: { action: 'config', roomId: authRoomId, timeLimit: 90, maxCapacity: 500 }
+        });
+        await roomHandler(req, res);
+        const result = getResult();
+        assert.strictEqual(result.statusCode, 200);
+        assert.strictEqual(result.body.success, true);
+        assert.strictEqual(result.body.room.timeLimit, 90);
+    });
+
+    it('rejects administrative actions when origin is an untrusted third party (HTTP 401)', async () => {
+        const { req, res, getResult } = mockRequestResponse({
+            method: 'POST',
+            headers: {
+                'x-requested-with': 'ACMHostDashboard',
+                'origin': 'https://malicious-external-site.com',
+                'host': 'acm-maze-runner-153208250440.asia-south1.run.app'
+            },
+            body: { action: 'start', roomId: authRoomId }
+        });
+        await roomHandler(req, res);
+        const result = getResult();
+        assert.strictEqual(result.statusCode, 401);
+        assert.strictEqual(result.body.success, false);
+    });
 });
 
 describe('4. Configurable Room Capacity & Limit Enforcement', () => {

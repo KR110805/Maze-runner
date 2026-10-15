@@ -171,13 +171,13 @@ class GameSync {
             if (this.hostToken) {
                 body.hostToken = this.hostToken;
             }
-            const headers = { "Content-Type": "application/json" };
+            const headers = { 
+                "Content-Type": "application/json",
+                "X-Requested-With": "ACMHostDashboard",
+                "X-Event-Mode": "true"
+            };
             if (this.hostToken) {
                 headers["x-host-token"] = this.hostToken;
-            }
-            const csrfToken = getCookieValue("acm_csrf_token");
-            if (csrfToken) {
-                headers["x-csrf-token"] = csrfToken;
             }
 
             const res = await fetch(`/api/room`, {
@@ -193,12 +193,9 @@ class GameSync {
                 data = { success: false, error: "Non-JSON response from server" };
             }
 
-            if (res.status === 401) {
-                console.warn("Host administrative action rejected: Valid host session required.");
-                if (typeof window !== 'undefined' && window.location && window.location.pathname.includes('host.html')) {
-                    window.location.href = '/login';
-                }
-                return { success: false, error: data.error || "Unauthorized: Valid host session required", unauthorized: true };
+            if (res.status === 401 || res.status === 403) {
+                console.warn("Host administrative action rejected:", data.error);
+                return { success: false, error: data.error || "Unauthorized: Event control authorization required", unauthorized: true };
             }
 
             if (data && data.room) {
@@ -247,6 +244,11 @@ class GameSync {
        PROVIDER 3: LOCAL TAB SYNC
        ----------------------------------------------------- */
     initLocalSync() {
+        if (typeof window === "undefined") {
+            // In headless/Node test environment, do not create lingering BroadcastChannel worker port
+            return;
+        }
+
         try {
             this.bc = new BroadcastChannel(`acm_sync_${this.roomId}`);
             this.bc.onmessage = (e) => {
@@ -257,14 +259,16 @@ class GameSync {
             };
         } catch (e) {}
 
-        window.addEventListener("storage", (e) => {
-            if (e.key === `acm_state_${this.roomId}` && e.newValue) {
-                try {
-                    this.cachedState = JSON.parse(e.newValue);
-                    this.notifyListeners();
-                } catch (err) {}
-            }
-        });
+        if (typeof window.addEventListener === "function") {
+            window.addEventListener("storage", (e) => {
+                if (e.key === `acm_state_${this.roomId}` && e.newValue) {
+                    try {
+                        this.cachedState = JSON.parse(e.newValue);
+                        this.notifyListeners();
+                    } catch (err) {}
+                }
+            });
+        }
 
         try {
             const saved = localStorage.getItem(`acm_state_${this.roomId}`);

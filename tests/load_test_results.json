@@ -1,0 +1,261 @@
+{
+  "environment": {
+    "platform": "darwin",
+    "release": "27.0.0",
+    "arch": "arm64",
+    "cpus": 8,
+    "totalMemoryMB": 8192,
+    "nodeVersion": "v22.14.0",
+    "timestamp": "2026-10-14T18:38:02.083Z"
+  },
+  "summary": {
+    "targetCapacity": 500,
+    "allCriteriaPassed": false,
+    "verdict": "FAIL"
+  },
+  "stages": [
+    {
+      "stage": "Stage 1: 50 Players",
+      "users": 50,
+      "totalRequests": 150,
+      "successCount": 150,
+      "failCount": 0,
+      "socketFailCount": 0,
+      "notModified304Count": 50,
+      "unchangedDeltaCount": 1,
+      "rps": 46.4,
+      "errorRate": 0,
+      "stats": {
+        "min": 0.36,
+        "p50": 1.66,
+        "p90": 12.02,
+        "p95": 13,
+        "p99": 13.55,
+        "max": 13.57,
+        "avg": 3.63
+      },
+      "joinStats": {
+        "min": 4.42,
+        "p50": 9.66,
+        "p90": 13.22,
+        "p95": 13.43,
+        "p99": 13.57,
+        "max": 13.57,
+        "avg": 8.42
+      },
+      "pollStats": {
+        "min": 0.36,
+        "p50": 1.01,
+        "p90": 2.2,
+        "p95": 2.51,
+        "p99": 3.56,
+        "max": 3.56,
+        "avg": 1.23
+      },
+      "totalBytesKB": 672,
+      "bandwidthSavedPct": 0
+    },
+    {
+      "stage": "Stage 2: 100 Players",
+      "users": 100,
+      "totalRequests": 346,
+      "successCount": 346,
+      "failCount": 0,
+      "socketFailCount": 0,
+      "notModified304Count": 146,
+      "unchangedDeltaCount": 1,
+      "rps": 82.5,
+      "errorRate": 0,
+      "stats": {
+        "min": 0.31,
+        "p50": 1.34,
+        "p90": 5.97,
+        "p95": 13.79,
+        "p99": 14.51,
+        "max": 14.7,
+        "avg": 3.07
+      },
+      "joinStats": {
+        "min": 4.86,
+        "p50": 5.68,
+        "p90": 14.45,
+        "p95": 14.49,
+        "p99": 14.7,
+        "max": 14.7,
+        "avg": 7.66
+      },
+      "pollStats": {
+        "min": 0.31,
+        "p50": 0.99,
+        "p90": 2.33,
+        "p95": 2.82,
+        "p99": 3.74,
+        "max": 6.83,
+        "avg": 1.2
+      },
+      "totalBytesKB": 2625,
+      "bandwidthSavedPct": 0
+    },
+    {
+      "stage": "Stage 3: 250 Players",
+      "users": 250,
+      "totalRequests": 1000,
+      "successCount": 1000,
+      "failCount": 0,
+      "socketFailCount": 0,
+      "notModified304Count": 500,
+      "unchangedDeltaCount": 1,
+      "rps": 217.9,
+      "errorRate": 0,
+      "stats": {
+        "min": 0.09,
+        "p50": 0.68,
+        "p90": 11.24,
+        "p95": 12.56,
+        "p99": 14.77,
+        "max": 15.69,
+        "avg": 3.14
+      },
+      "joinStats": {
+        "min": 6.21,
+        "p50": 10.08,
+        "p90": 13.93,
+        "p95": 14.61,
+        "p99": 15.41,
+        "max": 15.69,
+        "avg": 10.43
+      },
+      "pollStats": {
+        "min": 0.09,
+        "p50": 0.46,
+        "p90": 1.57,
+        "p95": 2.22,
+        "p99": 3.96,
+        "max": 5.02,
+        "avg": 0.71
+      },
+      "totalBytesKB": 16177,
+      "bandwidthSavedPct": 0
+    },
+    {
+      "stage": "Stage 4: 350 Players",
+      "users": 350,
+      "totalRequests": 1584,
+      "successCount": 1584,
+      "failCount": 0,
+      "socketFailCount": 0,
+      "notModified304Count": 884,
+      "unchangedDeltaCount": 1,
+      "rps": 285.5,
+      "errorRate": 0,
+      "stats": {
+        "min": 0.15,
+        "p50": 0.97,
+        "p90": 12.48,
+        "p95": 14.01,
+        "p99": 16.81,
+        "max": 27.41,
+        "avg": 3.72
+      },
+      "joinStats": {
+        "min": 4.67,
+        "p50": 12.09,
+        "p90": 15.56,
+        "p95": 16.44,
+        "p99": 17.82,
+        "max": 18.4,
+        "avg": 11.43
+      },
+      "pollStats": {
+        "min": 0.15,
+        "p50": 0.67,
+        "p90": 4.88,
+        "p95": 7.61,
+        "p99": 9.92,
+        "max": 27.41,
+        "avg": 1.53
+      },
+      "totalBytesKB": 31620,
+      "bandwidthSavedPct": 12.7
+    },
+    {
+      "stage": "Stage 5: 500 Players (Target)",
+      "users": 500,
+      "totalRequests": 2500,
+      "successCount": 2449,
+      "failCount": 51,
+      "socketFailCount": 51,
+      "notModified304Count": 1449,
+      "unchangedDeltaCount": 1,
+      "rps": 405.4,
+      "errorRate": 2.04,
+      "stats": {
+        "min": 0.11,
+        "p50": 0.92,
+        "p90": 18.94,
+        "p95": 168.58,
+        "p99": 201.02,
+        "max": 208.36,
+        "avg": 15.53
+      },
+      "joinStats": {
+        "min": 5.33,
+        "p50": 11.57,
+        "p90": 16.5,
+        "p95": 17.75,
+        "p99": 19.56,
+        "max": 20.49,
+        "avg": 11.89
+      },
+      "pollStats": {
+        "min": 0.11,
+        "p50": 0.63,
+        "p90": 20.76,
+        "p95": 183.25,
+        "p99": 202,
+        "max": 208.36,
+        "avg": 16.44
+      },
+      "totalBytesKB": 64397,
+      "bandwidthSavedPct": 21
+    }
+  ],
+  "burstTest": {
+    "success": 100,
+    "fail": 0,
+    "stats": {
+      "min": 56.57,
+      "p50": 68.91,
+      "p90": 79.45,
+      "p95": 82.12,
+      "p99": 83.05,
+      "max": 83.05,
+      "avg": 69.2
+    },
+    "durationMs": 83.90141600000061
+  },
+  "tournament": {
+    "isEnded": true,
+    "finisherCount": 500,
+    "finishSuccess": 500,
+    "finishFail": 0,
+    "stats": {
+      "min": 3.82,
+      "p50": 19.52,
+      "p90": 30.4,
+      "p95": 35.97,
+      "p99": 45.16,
+      "max": 48.26,
+      "avg": 19.9
+    },
+    "finishStats": {
+      "min": 15.39,
+      "p50": 19.79,
+      "p90": 23.91,
+      "p95": 40.02,
+      "p99": 46.84,
+      "max": 48.26,
+      "avg": 20.89
+    }
+  }
+}
