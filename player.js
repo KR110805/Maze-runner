@@ -77,13 +77,20 @@ class PlayerController {
                     sessionStorage.setItem(`acm_player_${this.roomId}`, JSON.stringify(this.currentPlayer));
                 } catch (e) {}
 
-                // Directly transition into active gameplay view / maze interface
-                this.launchGame(this.cachedTimeLimit || 120, this.cachedStartTime || Date.now());
+                // Transition to appropriate screen based on room state
+                const currentStatus = (this.sync.cachedState && this.sync.cachedState.status) || "LOBBY";
+                if (currentStatus === "STARTED") {
+                    this.launchGame(this.cachedTimeLimit || 120, this.sync.cachedState.startTime, this.sync.cachedState.matchEndTime);
+                } else if (currentStatus === "COUNTDOWN") {
+                    this.handleCountdownSync(this.sync.cachedState);
+                } else {
+                    this.showLobbyWaiting();
+                }
             } catch (err) {
                 console.error("Join fallback:", err);
                 const fallbackId = (this.currentPlayer && this.currentPlayer.id) ? this.currentPlayer.id : ("p_" + Date.now());
                 this.currentPlayer = { id: fallbackId, name: name };
-                this.launchGame(this.cachedTimeLimit || 120, Date.now());
+                this.showLobbyWaiting();
             } finally {
                 joinBtn.disabled = false;
                 joinBtn.textContent = "Join Game";
@@ -121,7 +128,14 @@ class PlayerController {
                     this.switchScreen("screenGame");
                     if (window.gameInstance) window.gameInstance.resizeCanvas();
                 } else if (this.currentPlayer) {
-                    this.launchGame(this.cachedTimeLimit || 120, this.cachedStartTime || Date.now());
+                    const currentStatus = (this.sync.cachedState && this.sync.cachedState.status) || "LOBBY";
+                    if (currentStatus === "STARTED") {
+                        this.launchGame(this.cachedTimeLimit || 120, this.sync.cachedState.startTime, this.sync.cachedState.matchEndTime);
+                    } else if (currentStatus === "COUNTDOWN") {
+                        this.handleCountdownSync(this.sync.cachedState);
+                    } else {
+                        this.showLobbyWaiting();
+                    }
                 } else {
                     this.switchScreen("screenJoin");
                 }
@@ -162,19 +176,30 @@ class PlayerController {
         this.switchScreen("screenLobbyWaiting");
     }
 
-    showCountdownOverlay() {
-        if (this.isCountingDown) return; // Prevent repeated reset while countdown is actively ticking
-        this.isCountingDown = true;
+    showCountdownOverlay(targetStartTime) {
+        this.startSynchronizedCountdown(targetStartTime || this.cachedStartTime);
+    }
 
+    startSynchronizedCountdown(targetStartTime) {
         const overlay = document.getElementById("countdownOverlay");
         const numEl = document.getElementById("countdownNumber");
         const subEl = document.getElementById("countdownSubtitle");
         if (!overlay || !numEl) return;
 
+        const targetTime = targetStartTime || (Date.now() + 3000);
+        const now = Date.now();
+        const initialMs = targetTime - now;
+
+        // If countdown has already elapsed, trigger start immediately
+        if (initialMs <= 80) {
+            this.triggerGameStart();
+            return;
+        }
+
+        if (this.isCountingDown) return; // Prevent duplicate tickers
+        this.isCountingDown = true;
+
         overlay.classList.add("active");
-        let count = 3;
-        numEl.textContent = count;
-        numEl.style.color = "#38bdf8";
         if (subEl) subEl.textContent = "GET READY!";
 
         if (window.gameInstance && window.gameInstance.sound) {
@@ -182,19 +207,18 @@ class PlayerController {
             window.gameInstance.sound.playCountdownBeep(false);
         }
 
-        if (this.countdownTimerInterval) clearInterval(this.countdownTimerInterval);
-        this.countdownTimerInterval = setInterval(() => {
-            count--;
-            if (count > 0) {
-                numEl.textContent = count;
-                numEl.style.animation = 'none';
-                void numEl.offsetWidth;
-                numEl.style.animation = 'zoomPulse 1s ease-in-out infinite';
+        let lastSec = -1;
 
-                if (window.gameInstance && window.gameInstance.sound) {
-                    window.gameInstance.sound.playCountdownBeep(false);
+        const updateTick = () => {
+            const currentNow = Date.now();
+            const msRemaining = targetTime - currentNow;
+
+            if (msRemaining <= 0) {
+                if (this.countdownTimerInterval) {
+                    clearInterval(this.countdownTimerInterval);
+                    this.countdownTimerInterval = null;
                 }
-            } else if (count === 0) {
+
                 numEl.textContent = "GO!";
                 numEl.style.color = "#00f5d4";
                 numEl.style.animation = 'none';
@@ -206,20 +230,32 @@ class PlayerController {
                     window.gameInstance.sound.playCountdownBeep(true);
                 }
 
-                // EXACT 3-SECOND MARK: START GAME IMMEDIATELY WITH ZERO DELAY!
-                if (this.currentPlayer && !this.gameStarted && !this.gameFinished) {
-                    this.launchGame(this.cachedTimeLimit || 120, this.cachedStartTime || Date.now(), this.cachedMatchEndTime);
-                }
+                this.triggerGameStart();
 
-                // Hide overlay after quick 350ms "GO!" flash directly into the live game
                 setTimeout(() => {
                     this.hideCountdownOverlay();
                 }, 350);
-
-                clearInterval(this.countdownTimerInterval);
-                this.countdownTimerInterval = null;
+                return;
             }
-        }, 1000);
+
+            const sec = Math.ceil(msRemaining / 1000);
+            if (sec !== lastSec) {
+                lastSec = sec;
+                numEl.textContent = sec;
+                numEl.style.color = "#38bdf8";
+                numEl.style.animation = 'none';
+                void numEl.offsetWidth;
+                numEl.style.animation = 'zoomPulse 1s ease-in-out infinite';
+
+                if (window.gameInstance && window.gameInstance.sound) {
+                    window.gameInstance.sound.playCountdownBeep(false);
+                }
+            }
+        };
+
+        updateTick();
+        if (this.countdownTimerInterval) clearInterval(this.countdownTimerInterval);
+        this.countdownTimerInterval = setInterval(updateTick, 50);
     }
 
     hideCountdownOverlay() {
@@ -232,54 +268,87 @@ class PlayerController {
         if (overlay) overlay.classList.remove("active");
     }
 
+    triggerGameStart() {
+        if (this.gameStarted || this.gameFinished) return;
+        this.launchGame(this.cachedTimeLimit || 120, this.cachedStartTime, this.cachedMatchEndTime);
+        if (window.gameInstance) {
+            window.gameInstance.setRaceActive(true);
+            window.gameInstance.startTimer(this.cachedStartTime);
+        }
+    }
+
+    handleCountdownSync(state) {
+        if (!this.currentPlayer) return;
+
+        const limit = state.timeLimit || 120;
+        const targetStartTime = state.startTime || (state.countdownStart ? state.countdownStart + 3000 : Date.now() + 3000);
+        const endTime = state.matchEndTime || (targetStartTime + (limit * 1000));
+        this.cachedTimeLimit = limit;
+        this.cachedStartTime = targetStartTime;
+        this.cachedMatchEndTime = endTime;
+
+        // Pre-render maze in background behind overlay so zero frame drops occur at race start
+        this.switchScreen("screenGame");
+        if (window.gameInstance) {
+            window.gameInstance.resizeCanvas();
+            const seed = state.mazeSeed || null;
+            if (!this.gamePrepared || window.gameInstance.seed !== seed) {
+                window.gameInstance.resetGame(seed, false);
+                this.gamePrepared = true;
+            }
+            window.gameInstance.setRaceActive(false);
+        }
+
+        this.startSynchronizedCountdown(targetStartTime);
+    }
+
     listenToSync() {
         this.sync.onUpdate((state) => {
             const now = Date.now();
             const limit = state.timeLimit || 120;
-            const endTime = state.matchEndTime || (state.startTime ? state.startTime + (limit * 1000) : null);
+            const targetStartTime = state.startTime || (state.countdownStart ? state.countdownStart + 3000 : null);
+            const endTime = state.matchEndTime || (targetStartTime ? targetStartTime + (limit * 1000) : null);
             const remaining = endTime ? Math.ceil((endTime - now) / 1000) : limit;
 
-            // If host triggers 3-second countdown
+            // If host triggers countdown
             if (state.status === "COUNTDOWN") {
-                this.cachedTimeLimit = limit;
-                this.cachedStartTime = state.startTime || (state.countdownStart ? state.countdownStart + 3000 : now + 3000);
-                this.cachedMatchEndTime = endTime || (this.cachedStartTime + limit * 1000);
-                if (this.currentPlayer && !this.gameStarted) {
-                    this.switchScreen("screenGame");
-                    if (window.gameInstance) {
-                        window.gameInstance.resizeCanvas();
-                    }
-                    this.showCountdownOverlay();
-                }
+                this.handleCountdownSync(state);
             } else if (state.status === "STARTED") {
                 this.hideCountdownOverlay();
                 if (this.currentPlayer) {
-                    // Check if time expired according to server-authoritative global match clock
                     if (endTime && remaining <= 0) {
                         this.handleTimeExpired();
                     } else if (!this.gameStarted && !this.gameFinished) {
-                        // Rehydrate or launch session directly into active game view
                         this.launchGame(limit, state.startTime, endTime);
                     } else if (this.gameStarted) {
-                        // Keep server-authoritative clock synchronized
                         this.matchEndTime = endTime;
                         this.remainingSeconds = remaining;
                         this.updateTimerDisplay();
+                        if (window.gameInstance && !window.gameInstance.isRaceActive) {
+                            window.gameInstance.setRaceActive(true);
+                        }
                     }
                 }
             } else if (state.status === "ENDED") {
                 this.hideCountdownOverlay();
+                if (window.gameInstance) {
+                    window.gameInstance.setRaceActive(false);
+                }
                 if (this.currentPlayer && (this.gameFinished || this.savedActiveGame)) {
                     this.showLeaderboard(state);
                 }
             } else if (state.status === "LOBBY") {
                 this.hideCountdownOverlay();
-                if (!this.gameStarted) {
-                    if (this.currentPlayer) {
-                        this.launchGame();
-                    } else {
-                        this.switchScreen("screenJoin");
-                    }
+                this.gameStarted = false;
+                this.gameFinished = false;
+                this.gamePrepared = false;
+                if (window.gameInstance) {
+                    window.gameInstance.setRaceActive(false);
+                }
+                if (this.currentPlayer) {
+                    this.showLobbyWaiting();
+                } else {
+                    this.switchScreen("screenJoin");
                 }
             }
         });
@@ -333,8 +402,9 @@ class PlayerController {
             }
             if (!rehydrated) {
                 const seed = (this.sync && this.sync.cachedState && this.sync.cachedState.mazeSeed) || null;
-                window.gameInstance.resetGame(seed);
+                window.gameInstance.resetGame(seed, true, startTime);
             }
+            window.gameInstance.setRaceActive(true);
             window.gameInstance.onSpellComplete = (stats) => {
                 this.onPlayerCompletedSpell(stats);
             };

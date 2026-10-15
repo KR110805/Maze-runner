@@ -32,6 +32,7 @@ class Game {
         this.elapsedSeconds = 0;
         this.timerInterval = null;
         this.isGameOver = false;
+        this.isRaceActive = false;
         this.collectedSequence = [];
 
         // Player physics & transform
@@ -886,9 +887,18 @@ class Game {
         return { x: resolvedX, z: resolvedZ };
     }
 
+    setRaceActive(active) {
+        this.isRaceActive = Boolean(active);
+        if (!this.isRaceActive) {
+            this.player.isMoving = false;
+            this.inputVector.x = 0;
+            this.inputVector.z = 0;
+        }
+    }
+
     updatePlayerPhysics(dt) {
         const inputLen = Math.hypot(this.inputVector.x, this.inputVector.z);
-        this.player.isMoving = inputLen > 0.05 && !this.isGameOver;
+        this.player.isMoving = inputLen > 0.05 && !this.isGameOver && this.isRaceActive;
 
         if (this.player.isMoving) {
             const moveSpeed = this.player.speed * Math.min(1.0, inputLen);
@@ -1043,6 +1053,7 @@ class Game {
     triggerVictory() {
         if (this.isGameOver) return;
         this.isGameOver = true;
+        this.setRaceActive(false);
         clearInterval(this.timerInterval);
         this.sound.playVictory();
 
@@ -1216,6 +1227,7 @@ class Game {
             this.playerGroup.rotation.y = this.player.angle;
         }
 
+        this.setRaceActive(true);
         this.updateHUD();
         this.notify(`Session restored! Continue hunting letters A, C, and M!`);
         return true;
@@ -1224,12 +1236,12 @@ class Game {
     /* -----------------------------------------------------
        12. HUD, TIMERS & RESET FLOW
        ----------------------------------------------------- */
-    startTimer() {
+    startTimer(serverStartTime = null) {
         if (this.timerInterval) clearInterval(this.timerInterval);
-        this.elapsedSeconds = 0;
-        this.startTime = Date.now();
+        this.startTime = serverStartTime || Date.now();
+        this.elapsedSeconds = Math.max(0, Math.floor((Date.now() - this.startTime) / 1000));
         this.timerInterval = setInterval(() => {
-            this.elapsedSeconds++;
+            this.elapsedSeconds = Math.max(0, Math.floor((Date.now() - this.startTime) / 1000));
             this.updateHUD();
         }, 1000);
     }
@@ -1266,7 +1278,7 @@ class Game {
         }
     }
 
-    resetGame(seed = null) {
+    resetGame(seed = null, startTimerNow = false, serverStartTime = null) {
         if (seed !== null && seed !== undefined) {
             this.seed = seed;
         }
@@ -1285,12 +1297,18 @@ class Game {
 
         this.steps = 0;
         this.isGameOver = false;
+        this.isRaceActive = Boolean(startTimerNow);
         this.collectedSequence = [];
 
         this.buildDungeonMaze();
         this.buildLetterCollectibles();
 
-        this.startTimer();
+        if (startTimerNow) {
+            this.startTimer(serverStartTime);
+        } else {
+            if (this.timerInterval) clearInterval(this.timerInterval);
+            this.elapsedSeconds = 0;
+        }
         this.updateHUD();
         this.notify("Explore the 3D labyrinth to uncover hidden spell letters A, C, and M!");
     }

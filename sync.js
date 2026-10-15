@@ -5,10 +5,16 @@
  * 2. Firebase Cloud Firestore
  * 3. Local BroadcastChannel + LocalStorage (Offline testing fallback)
  */
+function getCookieValue(name) {
+    if (typeof document === 'undefined') return null;
+    const match = document.cookie.match(new RegExp('(^|;\\s*)' + name + '=([^;]*)'));
+    return match ? decodeURIComponent(match[2]) : null;
+}
 
 class GameSync {
-    constructor(roomId = "ACM2026") {
+    constructor(roomId = "ACM2026", hostToken = null) {
         this.roomId = (roomId || "ACM2026").toUpperCase();
+        this.hostToken = hostToken || null;
         this.provider = null; // Will resolve via initPromise
         this.db = null;
         this.listeners = [];
@@ -24,9 +30,13 @@ class GameSync {
         this.initPromise = this.init();
     }
 
+    setHostToken(token) {
+        this.hostToken = token;
+    }
+
     async init() {
         // Priority 1: Firebase if configured
-        if (typeof window.isFirebaseConfigured === 'function' && window.isFirebaseConfigured()) {
+        if (typeof window !== 'undefined' && typeof window.isFirebaseConfigured === 'function' && window.isFirebaseConfigured()) {
             this.provider = "FIREBASE";
             await this.initFirebase();
             return;
@@ -46,7 +56,7 @@ class GameSync {
     }
 
     async checkVercelApi() {
-        if (window.location.protocol === "file:") return false;
+        if (typeof window !== 'undefined' && window.location && window.location.protocol === "file:") return false;
         try {
             const res = await fetch(`/api/room?roomId=${this.roomId}`, {
                 method: "GET",
@@ -68,7 +78,7 @@ class GameSync {
        PROVIDER 1: VERCEL SERVERLESS API SYNC
        ----------------------------------------------------- */
     initVercelSync() {
-        console.log("⚡ Vercel Cloud Serverless Sync Active for Room:", this.roomId);
+        console.log("⚡ Cloud Serverless Sync Active for Room:", this.roomId);
         if (this.isPolling) return;
         this.isPolling = true;
 
@@ -157,12 +167,40 @@ class GameSync {
 
     async vercelAction(action, payload = {}) {
         try {
+            const body = { action, roomId: this.roomId, ...payload };
+            if (this.hostToken) {
+                body.hostToken = this.hostToken;
+            }
+            const headers = { "Content-Type": "application/json" };
+            if (this.hostToken) {
+                headers["x-host-token"] = this.hostToken;
+            }
+            const csrfToken = getCookieValue("acm_csrf_token");
+            if (csrfToken) {
+                headers["x-csrf-token"] = csrfToken;
+            }
+
             const res = await fetch(`/api/room`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action, roomId: this.roomId, ...payload })
+                headers,
+                credentials: "same-origin",
+                body: JSON.stringify(body)
             });
-            const data = await res.json();
+            let data = {};
+            try {
+                data = await res.json();
+            } catch (err) {
+                data = { success: false, error: "Non-JSON response from server" };
+            }
+
+            if (res.status === 401) {
+                console.warn("Host administrative action rejected: Valid host session required.");
+                if (typeof window !== 'undefined' && window.location && window.location.pathname.includes('host.html')) {
+                    window.location.href = '/login';
+                }
+                return { success: false, error: data.error || "Unauthorized: Valid host session required", unauthorized: true };
+            }
+
             if (data && data.room) {
                 this.cachedState = Object.assign(this.cachedState, data.room);
                 this.notifyListeners();
@@ -476,11 +514,14 @@ class GameSync {
 
         if (this.provider === "VERCEL") {
             // Trigger 3s countdown on server
-            await this.vercelAction("countdown", { timeLimit });
+            const res = await this.vercelAction("countdown", { timeLimit });
+            if (res && res.unauthorized) {
+                return res;
+            }
             setTimeout(async () => {
                 await this.vercelAction("start", { timeLimit });
             }, 3000);
-            return;
+            return res;
         }
 
         if (this.provider === "FIREBASE" && this.db) {

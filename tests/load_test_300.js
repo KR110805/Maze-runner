@@ -87,9 +87,10 @@ function calculatePercentiles(latencies) {
 async function sendRequest(baseUrl, options) {
     const start = performance.now();
     try {
+        const headers = { ...(options.headers || {}), 'x-test-harness': '1' };
         const res = await fetch(`${baseUrl}${options.path}`, {
             method: options.method || 'GET',
-            headers: options.headers || {},
+            headers,
             body: options.body ? JSON.stringify(options.body) : undefined
         });
 
@@ -318,8 +319,8 @@ async function runFullMatchSimulation(baseUrl, totalPlayers = 300) {
     const cdRes = await sendRequest(baseUrl, {
         path: '/api/room',
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: { action: 'countdown', roomId, timeLimit: 120 }
+        headers: { 'Content-Type': 'application/json', 'x-host-token': 'acm-host-secret-2026' },
+        body: { action: 'countdown', roomId, timeLimit: 120, hostToken: 'acm-host-secret-2026' }
     });
     console.log(`   ✅ Match countdown initiated. Shared deterministic mazeSeed: ${cdRes.data.room.mazeSeed}`);
 
@@ -327,8 +328,8 @@ async function runFullMatchSimulation(baseUrl, totalPlayers = 300) {
     const startRes = await sendRequest(baseUrl, {
         path: '/api/room',
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: { action: 'start', roomId, timeLimit: 120 }
+        headers: { 'Content-Type': 'application/json', 'x-host-token': 'acm-host-secret-2026' },
+        body: { action: 'start', roomId, timeLimit: 120, hostToken: 'acm-host-secret-2026' }
     });
     console.log(`   ✅ Match started. Server status: ${startRes.data.room.status}`);
     console.log(`   ⏳ Simulating 2.6s live player navigation & spell sequence collection...`);

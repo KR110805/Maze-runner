@@ -6,7 +6,8 @@
     "start": "node server.js",
     "dev": "node server.js",
     "test": "node --test tests/unit.test.js",
-    "test:load": "node tests/load_test_300.js"
+    "test:load": "node tests/load_test_300.js",
+    "test:load:500": "node tests/load_test_500.js"
   },
   "keywords": [
     "kahoot",

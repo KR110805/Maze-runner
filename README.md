@@ -151,16 +151,20 @@ git push -u origin main
 
 ---
 
-### 2. Environment Variables (Optional)
+### 2. Environment Variables & Security Configuration
 
-The application includes built-in cloud persistence defaults. For custom isolated production setups, you can connect your own free [Upstash Redis](https://upstash.com/) instance:
+For multi-instance deployments and production security, configure the following environment variables (in Vercel, Google Cloud Run, or your container runtime):
 
-In your **Vercel Project Settings > Environment Variables**, add:
-
-| Variable | Description | Default |
+| Variable | Description | Default / Production Guidance |
 | :--- | :--- | :--- |
-| `UPSTASH_REDIS_REST_URL` | Upstash Redis REST endpoint | Pre-configured fallback |
-| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST authorization token | Pre-configured fallback |
+| `HOST_SECRET` | Secret token required to authorize administrative actions (`countdown`, `start`, `end`, `reset`, `config`). | Defaults to `acm-host-secret-2026` if unset. **Must be set to a strong random secret in production.** |
+| `MAX_ROOM_PLAYERS` | Maximum concurrent player capacity per room before HTTP 429 is returned. | `550` (500 players target + 10% operational headroom). |
+| `UPSTASH_REDIS_REST_URL` | Upstash Redis REST endpoint for multi-instance persistence. | Required for multi-instance deployments. |
+| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST bearer authorization token. | Required for multi-instance deployments. |
+| `PORT` | Local or container HTTP listen port. | `3000` (or `8080` on Cloud Run). |
+
+> [!WARNING]
+> **Credential Rotation Recommendation:** If any Upstash Redis token was previously committed or exposed in early development commits, navigate to your [Upstash Console](https://console.upstash.com/), select your database, and click **Reset Token / Rotate Credentials** immediately. Never commit live production credentials to version control.
 
 ---
 

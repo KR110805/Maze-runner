@@ -287,7 +287,7 @@
                 </span>
                 <h1 class="projector-title">ACM MAZE SHOWDOWN</h1>
             </div>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
                 <button class="btn-action" onclick="toggleFullscreen()">⛶ Fullscreen</button>
                 <button class="btn-action" onclick="testPlayerTab()" style="background: rgba(56, 189, 248, 0.25); border-color: #38bdf8;">
                     👤 Open Player Tab
@@ -295,6 +295,9 @@
                 <button class="btn-action" onclick="simulatePlayer()" style="background: rgba(0, 245, 212, 0.2); border-color: #00f5d4;">
                     ➕ Add Test Player
                 </button>
+                <a href="/logout" class="btn-action" style="text-decoration: none; opacity: 0.75;" title="End host session">
+                    🚪 Logout
+                </a>
             </div>
         </div>
 
@@ -318,10 +321,12 @@
                     PIN: <span id="pinDisplay">ACM2026</span>
                 </div>
 
+                <div id="wifiIpNotice" style="display: none; font-size: 0.78rem; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 8px; padding: 6px 10px; margin-top: 8px; color: #93c5fd; text-align: center;"></div>
+
                 <!-- Editable Phone Link Config -->
                 <div class="url-config-box">
                     <label>📱 Web Link Encoded in QR Code:</label>
-                    <input type="text" id="encodedUrlInput" class="url-input" value="http://192.168.0.37:3000/index.html?room=ACM2026">
+                    <input type="text" id="encodedUrlInput" class="url-input" value="" placeholder="Player join link loading...">
                     <button class="btn-action" onclick="updateCustomQr()" style="width: 100%; margin-top: 6px; font-size: 0.78rem; justify-content: center;">
                         🔄 Refresh QR Code with this Link
                     </button>
@@ -347,7 +352,7 @@
                         </p>
                     </div>
                     <div class="player-counter-badge">
-                        <span id="hostPlayerCount">0</span> Joined
+                        <span id="hostPlayerCount">0</span> / <span id="hostPlayerCapacity">500</span> Joined
                     </div>
                 </div>
 
@@ -486,41 +491,60 @@
     <!-- Script Controller -->
     <script>
         const urlParams = new URLSearchParams(window.location.search);
-        const roomId = (urlParams.get("room") || "ACM2026").toUpperCase();
-        document.getElementById("pinDisplay").innerText = roomId;
+        let currentRoomId = (urlParams.get("room") || "ACM2026").toUpperCase();
+        const pinDisplay = document.getElementById("pinDisplay");
+        if (pinDisplay) pinDisplay.innerText = currentRoomId;
 
-        const sync = new GameSync(roomId);
-        const sound = new SoundManager();
-
-        // Detect or Default to the Wi-Fi Network HTTP URL
-        let defaultJoinUrl = "";
-        if (window.location.protocol.startsWith("http")) {
-            // When hosted via web server (e.g. http://192.168.0.37:3000/host.html)
-            defaultJoinUrl = `${window.location.origin}/index.html?room=${roomId}`;
-        } else {
-            // When opened locally via file://, encode the HTTP server Wi-Fi URL so phones can open it!
-            defaultJoinUrl = `http://192.168.0.37:3000/index.html?room=${roomId}`;
+        // Dynamic player join URL resolution
+        function getPlayerJoinUrl(code) {
+            const targetCode = (code || currentRoomId || "ACM2026").toUpperCase();
+            let baseOrigin = "https://acm-maze-runner-153208250440.asia-south1.run.app";
+            if (window.location && window.location.protocol && window.location.protocol.startsWith("http") && window.location.origin && window.location.origin !== "null") {
+                baseOrigin = window.location.origin;
+            }
+            return `${baseOrigin}/index.html?room=${encodeURIComponent(targetCode)}`;
         }
 
         const urlInput = document.getElementById("encodedUrlInput");
-        if (urlInput) urlInput.value = defaultJoinUrl;
+        let initialJoinUrl = getPlayerJoinUrl(currentRoomId);
+        if (urlInput) urlInput.value = initialJoinUrl;
 
-        // Render QR Code Safely with exact HTTP link
+        // High-contrast, visible QR Code generation
+        let currentQrInstance = null;
         function generateQRCode(url) {
             const container = document.getElementById("qrcodeContainer");
             if (!container) return;
             container.innerHTML = "";
 
+            const targetUrl = url || getPlayerJoinUrl(currentRoomId);
+
             try {
                 if (typeof QRCode !== "undefined") {
-                    new QRCode(container, {
-                        text: url,
+                    currentQrInstance = new QRCode(container, {
+                        text: targetUrl,
                         width: 200,
                         height: 200,
-                        colorDark: "#060913",
+                        colorDark: "#000000",
                         colorLight: "#ffffff",
                         correctLevel: QRCode.CorrectLevel.M
                     });
+
+                    setTimeout(() => {
+                        const img = container.querySelector("img");
+                        const canvas = container.querySelector("canvas");
+                        if (img && img.src && img.src.length > 50) {
+                            img.style.display = "block";
+                            img.style.width = "200px";
+                            img.style.height = "200px";
+                            img.style.margin = "0 auto";
+                            if (canvas) canvas.style.display = "none";
+                        } else if (canvas) {
+                            canvas.style.display = "block";
+                            canvas.style.width = "200px";
+                            canvas.style.height = "200px";
+                            canvas.style.margin = "0 auto";
+                        }
+                    }, 50);
                     return;
                 }
             } catch (err) {
@@ -529,24 +553,63 @@
 
             // Fallback: Online QR image generator
             const img = document.createElement("img");
-            img.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`;
+            img.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(targetUrl)}`;
             img.alt = "QR Code to Join";
-            img.style.borderRadius = "10px";
+            img.style.width = "200px";
+            img.style.height = "200px";
+            img.style.display = "block";
+            img.style.margin = "0 auto";
+            img.style.borderRadius = "8px";
             container.appendChild(img);
         }
 
         function updateCustomQr() {
-            const newUrl = document.getElementById("encodedUrlInput").value.trim();
+            const input = document.getElementById("encodedUrlInput");
+            const newUrl = input ? input.value.trim() : "";
             if (newUrl) {
                 generateQRCode(newUrl);
+            } else {
+                const defaultUrl = getPlayerJoinUrl(currentRoomId);
+                if (input) input.value = defaultUrl;
+                generateQRCode(defaultUrl);
             }
         }
 
-        // Generate QR code right away
-        generateQRCode(defaultJoinUrl);
+        // Render QR Code immediately upon script execution
+        generateQRCode(initialJoinUrl);
+
+        // Auto-detect Wi-Fi IP if running on localhost to assist mobile test joins
+        if (window.location.protocol.startsWith("http") && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
+            fetch("/api/info")
+                .then(r => r.json())
+                .then(info => {
+                    const noticeEl = document.getElementById("wifiIpNotice");
+                    if (info.ip && info.ip !== "localhost" && info.ip !== "127.0.0.1") {
+                        const portPart = window.location.port ? `:${window.location.port}` : (info.port ? `:${info.port}` : "");
+                        const wifiJoinUrl = `${window.location.protocol}//${info.ip}${portPart}/index.html?room=${currentRoomId}`;
+                        if (urlInput) urlInput.value = wifiJoinUrl;
+                        generateQRCode(wifiJoinUrl);
+                        if (noticeEl) {
+                            noticeEl.innerHTML = `📶 <strong>Auto-Configured:</strong> QR code points to Wi-Fi IP <code>${info.ip}</code>`;
+                            noticeEl.style.display = "block";
+                        }
+                    } else if (noticeEl) {
+                        noticeEl.innerHTML = `⚠️ <strong>Notice:</strong> Running on localhost. If players join from phones, enter this laptop's Wi-Fi IP in the link below.`;
+                        noticeEl.style.display = "block";
+                        noticeEl.style.borderColor = "#f59e0b";
+                        noticeEl.style.color = "#fcd34d";
+                    }
+                })
+                .catch(() => {});
+        }
+
+        // Initialize synchronization and audio after QR setup
+        const sync = new GameSync(currentRoomId);
+        const sound = new SoundManager();
 
         function copyJoinLink() {
-            const linkToCopy = document.getElementById("encodedUrlInput").value;
+            const input = document.getElementById("encodedUrlInput");
+            const linkToCopy = (input && input.value.trim()) || getPlayerJoinUrl(currentRoomId);
             navigator.clipboard.writeText(linkToCopy).then(() => {
                 alert("Player join link copied to clipboard:\n" + linkToCopy);
             }).catch(() => {
@@ -555,7 +618,8 @@
         }
 
         function testPlayerTab() {
-            const linkToOpen = document.getElementById("encodedUrlInput").value;
+            const input = document.getElementById("encodedUrlInput");
+            const linkToOpen = (input && input.value.trim()) || getPlayerJoinUrl(currentRoomId);
             window.open(linkToOpen, "_blank");
         }
 
@@ -572,11 +636,22 @@
         let hostTimerInterval = null;
         let hostCountdownInterval = null;
 
-        // Listen for Real-Time Updates
         sync.onUpdate((state) => {
+            if (state && state.id && state.id !== currentRoomId) {
+                currentRoomId = state.id;
+                const pinEl = document.getElementById("pinDisplay");
+                if (pinEl) pinEl.innerText = currentRoomId;
+                const newJoinUrl = getPlayerJoinUrl(currentRoomId);
+                const inputEl = document.getElementById("encodedUrlInput");
+                if (inputEl) inputEl.value = newJoinUrl;
+                generateQRCode(newJoinUrl);
+            }
+
             const players = Object.values(state.players || {});
             const countEl = document.getElementById("hostPlayerCount");
             if (countEl) countEl.innerText = players.length;
+            const capEl = document.getElementById("hostPlayerCapacity");
+            if (capEl) capEl.innerText = state.targetCapacity || state.maxCapacity || 500;
 
             if (state.status === "LOBBY") {
                 if (hostAutoEndTimeout) {
@@ -606,7 +681,8 @@
                     clearTimeout(hostAutoEndTimeout);
                     hostAutoEndTimeout = null;
                 }
-                showHostCountdown();
+                const targetStartTime = state.startTime || (state.countdownStart ? state.countdownStart + 3000 : Date.now() + 3000);
+                showHostCountdown(targetStartTime);
             } else if (state.status === "STARTED") {
                 hideHostCountdown();
                 showPhase("hostGamePhase");
@@ -626,9 +702,9 @@
             }
         });
 
-        // 3-Second Kahoot Countdown on Host Screen
+        // Synchronized Server-Authoritative Countdown on Host Screen
         let isHostCountingDown = false;
-        function showHostCountdown() {
+        function showHostCountdown(targetStartTime) {
             if (isHostCountingDown) return; // Prevent repeated reset while countdown is actively ticking
             isHostCountingDown = true;
 
@@ -638,23 +714,17 @@
 
             sound.init();
             overlay.classList.add("active");
-            let count = 3;
-            numEl.textContent = count;
-            numEl.style.animation = 'none';
-            void numEl.offsetWidth;
-            numEl.style.animation = 'zoomPulse 1s ease-in-out infinite';
-            sound.playCountdownBeep(false);
 
-            if (hostCountdownInterval) clearInterval(hostCountdownInterval);
-            hostCountdownInterval = setInterval(() => {
-                count--;
-                if (count > 0) {
-                    numEl.textContent = count;
-                    numEl.style.animation = 'none';
-                    void numEl.offsetWidth;
-                    numEl.style.animation = 'zoomPulse 1s ease-in-out infinite';
-                    sound.playCountdownBeep(false);
-                } else if (count === 0) {
+            const targetTime = targetStartTime || (Date.now() + 3000);
+            let lastSec = -1;
+
+            const tick = () => {
+                const remainingMs = targetTime - Date.now();
+                if (remainingMs <= 0) {
+                    if (hostCountdownInterval) {
+                        clearInterval(hostCountdownInterval);
+                        hostCountdownInterval = null;
+                    }
                     numEl.textContent = "GO!";
                     numEl.style.animation = 'none';
                     void numEl.offsetWidth;
@@ -666,11 +736,23 @@
                     setTimeout(() => {
                         hideHostCountdown();
                     }, 350);
-
-                    clearInterval(hostCountdownInterval);
-                    hostCountdownInterval = null;
+                    return;
                 }
-            }, 1000);
+
+                const sec = Math.ceil(remainingMs / 1000);
+                if (sec !== lastSec) {
+                    lastSec = sec;
+                    numEl.textContent = sec;
+                    numEl.style.animation = 'none';
+                    void numEl.offsetWidth;
+                    numEl.style.animation = 'zoomPulse 1s ease-in-out infinite';
+                    sound.playCountdownBeep(false);
+                }
+            };
+
+            tick();
+            if (hostCountdownInterval) clearInterval(hostCountdownInterval);
+            hostCountdownInterval = setInterval(tick, 50);
         }
 
         function hideHostCountdown() {
@@ -757,10 +839,10 @@
             }
         }
 
-        function hostStartGame() {
+        async function hostStartGame() {
             sound.init();
             const timeLimit = parseInt(document.getElementById("timeLimitSelect").value) || 120;
-            sync.startHostGame(timeLimit);
+            await sync.startHostGame(timeLimit);
         }
 
         let hostAutoEndTimeout = null;
@@ -855,7 +937,7 @@
         }
         }
 
-        function hostEndGame() {
+        async function hostEndGame() {
             if (hostAutoEndTimeout) {
                 clearTimeout(hostAutoEndTimeout);
                 hostAutoEndTimeout = null;
@@ -864,7 +946,7 @@
                 clearInterval(hostTimerInterval);
                 hostTimerInterval = null;
             }
-            sync.endHostGame();
+            await sync.endHostGame();
         }
 
         function renderPodiumAndLeaderboard(players) {
@@ -918,8 +1000,8 @@
             });
         }
 
-        function hostResetRound() {
-            sync.resetRoom();
+        async function hostResetRound() {
+            await sync.resetRoom();
         }
 
         function escapeHtml(s) {

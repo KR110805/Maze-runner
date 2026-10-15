@@ -242,10 +242,10 @@ During full-codebase static inspection, the following technical nuances, configu
 
 ### 3. Hardcoded Cloud Credentials in Source Code
 - **Observation**:
-  - `api/room.js` line 10–11 exposes hardcoded Upstash Redis REST credentials as fallbacks:
+  - `api/room.js` previously exposed hardcoded Upstash Redis REST credentials as fallbacks:
     ```javascript
-    const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL || (IS_VERCEL ? "https://grateful-walleye-229146.upstash.io" : null);
-    const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || (IS_VERCEL ? "gQAAAAAAA38aAQIgcDI5MmU3Y2I1ZGVhMjc0MzA2YmE5NmEwYWRiM2UyMWE5Yg" : null);
+    const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL || null;
+    const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || null;
     ```
 - **Security Assessment**:
   - Hardcoded tokens in source code present credential leakage risks if the repository is made public. In production environments, credentials should be restricted strictly to environment variables.
